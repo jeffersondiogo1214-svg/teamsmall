@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { arred, brl, FORMAS, qtd } from '../utils.js';
 import Modal from '../components/Modal.jsx';
@@ -81,8 +81,15 @@ export default function PDV() {
     return () => { vivo = false; clearTimeout(t); };
   }, [busca]);
 
-  const carregarPedidos = () => api('/pedidos').then(setPedidosPendentes).catch((e) => setErro(e.message));
-  useEffect(() => { carregarPedidos(); }, []);
+  const carregarPedidos = useCallback(
+    () => api('/pedidos').then(setPedidosPendentes).catch((e) => setErro(e.message)),
+    []
+  );
+  useEffect(() => {
+    carregarPedidos();
+    const timer = window.setInterval(carregarPedidos, 15000);
+    return () => window.clearInterval(timer);
+  }, [carregarPedidos]);
 
   const adicionar = (p) => {
     setItens((l) => {

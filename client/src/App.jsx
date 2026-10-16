@@ -11,15 +11,16 @@ import Pedidos from './pages/Pedidos.jsx';
 
 export default function App() {
   const { usuario, carregando, admin } = useAuth();
+  const vendedor = usuario?.perfil === 'vendedor';
   if (carregando) return <div className="centro">Carregando…</div>;
   if (!usuario) return <Login />;
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={usuario.perfil === 'vendedor' ? <Navigate to="/pedidos" replace /> : <PDV />} />
-        <Route path="/pedidos" element={admin || usuario.perfil === 'vendedor' ? <Pedidos /> : <Navigate to="/" replace />} />
-        <Route path="/vendas" element={<Vendas />} />
-        <Route path="/produtos" element={<Produtos />} />
+        <Route path="/" element={vendedor ? <Navigate to="/pedidos" replace /> : <PDV />} />
+        <Route path="/pedidos" element={admin || vendedor ? <Pedidos /> : <Navigate to="/" replace />} />
+        <Route path="/vendas" element={!vendedor ? <Vendas /> : <Navigate to="/pedidos" replace />} />
+        <Route path="/produtos" element={admin ? <Produtos /> : <Navigate to={vendedor ? '/pedidos' : '/'} replace />} />
         <Route path="/clientes" element={<Clientes />} />
         {admin && <Route path="/configuracoes" element={<Configuracoes />} />}
         <Route path="*" element={<Navigate to="/" replace />} />

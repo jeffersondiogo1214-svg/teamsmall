@@ -35,7 +35,11 @@ export default function Pedidos() {
     () => api('/pedidos').then(setPedidos).catch((e) => setErro(e.message)),
     []
   );
-  useEffect(() => { carregarPedidos(); }, [carregarPedidos]);
+  useEffect(() => {
+    carregarPedidos();
+    const timer = window.setInterval(carregarPedidos, 15000);
+    return () => window.clearInterval(timer);
+  }, [carregarPedidos]);
 
   useEffect(() => {
     const q = busca.trim();
