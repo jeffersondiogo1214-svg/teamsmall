@@ -31,6 +31,7 @@ const ta = A.token;
 const tb = B.token;
 passo('duas empresas criadas, cada uma com seu administrador');
 
+await esperar(201, '/caixa/abrir', { method: 'POST', token: ta, body: { valorAbertura: 100 } });
 await esperar(401, '/produtos');
 await esperar(401, '/auth/login', { method: 'POST', body: { email: `ana-${sufixo}@teste.com`, senha: 'errada-errada' } });
 passo('sem token e senha errada são barrados');
@@ -89,11 +90,15 @@ assert.equal(new Set(numeros).size, 3);
 assert.equal((await esperar(200, '/produtos?q=002', { token: ta }))[0].estoque, 0);
 passo('5 vendas simultâneas para 3 unidades: 3 passam, 2 recusadas, números sem repetição, estoque 0');
 
-const cancelada = await esperar(200, `/vendas/${v1.id}/cancelar`, { method: 'POST', token: ta });
+const cancelada = await esperar(200, `/vendas/${v1.id}/cancelar`, {
+  method: 'POST', token: ta, body: { motivo: 'Cancelamento integral de teste', formaReembolso: 'dinheiro' },
+});
 assert.equal(cancelada.status, 'cancelada');
 assert.equal(await estoque(), 4);
-await esperar(409, `/vendas/${v1.id}/cancelar`, { method: 'POST', token: ta });
-passo('cancelamento devolve o estoque e não roda duas vezes');
+await esperar(409, `/vendas/${v1.id}/cancelar`, {
+  method: 'POST', token: ta, body: { motivo: 'Tentativa repetida', formaReembolso: 'dinheiro' },
+});
+passo('cancelamento com motivo devolve o estoque e não roda duas vezes');
 
 const vendedorEmail = `vendedor-${sufixo}@teste.com`;
 await esperar(201, '/usuarios', { method: 'POST', token: ta, body: { nome: 'Vera', email: vendedorEmail, senha: 'senha-forte-3', perfil: 'vendedor' } });
@@ -108,6 +113,7 @@ passo('vendedor cria pedido para cliente e reserva estoque, mas não finaliza ve
 const caixaEmail = `caixa-${sufixo}@teste.com`;
 const caixa = await esperar(201, '/usuarios', { method: 'POST', token: ta, body: { nome: 'Caio', email: caixaEmail, senha: 'senha-forte-2', perfil: 'caixa' } });
 const tc = (await esperar(200, '/auth/login', { method: 'POST', body: { email: caixaEmail, senha: 'senha-forte-2' } })).token;
+await esperar(201, '/caixa/abrir', { method: 'POST', token: tc, body: { valorAbertura: 0 } });
 await esperar(403, `/pedidos/${pedido.id}/finalizar`, { method: 'POST', token: tv, body: { pagamentos: [{ forma: 'pix', valor: 10.5 }] } });
 await esperar(200, `/pedidos/${pedido.id}/finalizar`, { method: 'POST', token: tc, body: { pagamentos: [{ forma: 'pix', valor: 10.5 }] } });
 const vendaPedido = await esperar(200, `/vendas/${pedido.id}`, { token: tc });
@@ -119,10 +125,45 @@ await esperar(200, `/pedidos/${pedidoCancelado.id}/cancelar`, { method: 'POST', 
 assert.equal(await estoque(), 3);
 passo('cancelar pedido devolve o estoque reservado');
 await esperar(403, '/produtos', { method: 'POST', token: tc, body: { codigo: '9', descricao: 'x', preco: 1 } });
-await esperar(403, `/vendas/${v2.id}/cancelar`, { method: 'POST', token: tc });
+await esperar(200, `/vendas/${v2.id}/cancelar`, {
+  method: 'POST', token: tc, body: { motivo: 'Cancelamento pelo operador de caixa', formaReembolso: 'pix' },
+});
 await esperar(403, '/usuarios', { token: tc });
 await esperar(201, '/vendas', { method: 'POST', token: tc, body: { itens: [item(1)], pagamentos: [{ forma: 'dinheiro', valor: 10.5 }] } });
-passo('perfil caixa vende, mas não cadastra produto, não cancela e não administra usuários');
+passo('perfil caixa vende e registra cancelamentos, mas não cadastra produto nem administra usuários');
+
+const fiadoProduto = await esperar(201, '/produtos', {
+  method: 'POST', token: ta, body: { codigo: 'fiado', descricao: 'Produto fiado', preco: 5, estoque: 10 },
+});
+const vendaFiado = await esperar(201, '/vendas', {
+  method: 'POST', token: ta,
+  body: {
+    clienteId: cliente.id,
+    itens: [{ produtoId: fiadoProduto.id, quantidade: 1 }],
+    pagamentos: [{ forma: 'pix', valor: 2 }],
+    fiado: true,
+  },
+});
+assert.equal(Number(vendaFiado.saldo_devedor), 3);
+const devolvida = await esperar(200, `/vendas/${vendaFiado.id}/devolucoes`, {
+  method: 'POST', token: tc,
+  body: {
+    motivo: 'Devolução parcial de teste',
+    itens: [{ itemId: vendaFiado.itens[0].id, quantidade: 0.2 }],
+  },
+});
+assert.equal(Number(devolvida.saldo_devedor), 2);
+await esperar(201, `/clientes/${cliente.id}/cobrancas`, {
+  method: 'POST', token: tc,
+  body: { vendaId: vendaFiado.id, forma: 'pix', valor: 1 },
+});
+const historico = await esperar(200, `/clientes/${cliente.id}/historico`, { token: ta });
+assert.equal(Number(historico.vendas.find((v) => v.id === vendaFiado.id).saldo_devedor), 1);
+passo('fiado, devolução parcial, estoque devolvido, cobrança parcial e histórico de cliente');
+
+await esperar(200, '/dashboard', { token: ta });
+await esperar(200, '/relatorios?de=2000-01-01&ate=2100-01-01', { token: ta });
+passo('painel e relatórios respondem para o administrador');
 
 await esperar(200, `/usuarios/${caixa.id}`, { method: 'PUT', token: ta, body: { nome: 'Caio', perfil: 'caixa', ativo: false } });
 await esperar(401, '/produtos', { token: tc });

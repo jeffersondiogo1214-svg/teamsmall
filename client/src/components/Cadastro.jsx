@@ -160,7 +160,11 @@ export default function Cadastro({
           inicial={form}
           rota={rota}
           onClose={() => setForm(null)}
-          onSalvo={() => { setForm(null); carregar(); }}
+          onSalvo={() => {
+            setForm(null);
+            carregar();
+            window.dispatchEvent(new CustomEvent('toast', { detail: 'Salvo com sucesso.' }));
+          }}
         />
       )}
     </div>

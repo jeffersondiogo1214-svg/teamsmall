@@ -25,8 +25,8 @@ router.get('/', soAdmin, wrap(async (req, res) => {
               coalesce((select sum(d.valor) from venda_devolucoes d where d.venda_id = v.id), 0) as devolvido,
               v.total - coalesce((select sum(d.valor) from venda_devolucoes d where d.venda_id = v.id), 0) as liquido
          from vendas v
-        where v.empresa_id = $1 and v.status = 'concluida'
-          and (coalesce(v.finalizada_em, v.criado_em) at time zone $4)::date >= $2::date
+         where v.empresa_id = $1 and v.status in ('concluida', 'cancelada') and v.finalizada_em is not null
+           and (coalesce(v.finalizada_em, v.criado_em) at time zone $4)::date >= $2::date
           and (coalesce(v.finalizada_em, v.criado_em) at time zone $4)::date <= $3::date
         order by data desc, v.numero desc`,
       params
@@ -43,7 +43,8 @@ router.get('/', soAdmin, wrap(async (req, res) => {
          left join lateral (
            select sum(valor) as valor from venda_devolucoes where venda_id = v.id
          ) d on true
-        where v.empresa_id = $1 and v.status = 'concluida'
+        where v.empresa_id = $1 and v.status in ('concluida', 'cancelada') and v.finalizada_em is not null
+          and v.vendedor_id is not null
           and (coalesce(v.finalizada_em, v.criado_em) at time zone $4)::date >= $2::date
           and (coalesce(v.finalizada_em, v.criado_em) at time zone $4)::date <= $3::date
         group by vendedor, percentual
@@ -82,7 +83,7 @@ router.get('/', soAdmin, wrap(async (req, res) => {
               sum(i.quantidade - i.quantidade_devolvida) as quantidade,
               sum(i.total - i.quantidade_devolvida * i.preco_unit) as liquido
          from venda_itens i join vendas v on v.id = i.venda_id
-        where v.empresa_id = $1 and v.status = 'concluida'
+        where v.empresa_id = $1 and v.status in ('concluida', 'cancelada') and v.finalizada_em is not null
           and (coalesce(v.finalizada_em, v.criado_em) at time zone $4)::date >= $2::date
           and (coalesce(v.finalizada_em, v.criado_em) at time zone $4)::date <= $3::date
         group by i.codigo, i.descricao

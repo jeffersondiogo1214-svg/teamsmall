@@ -18,7 +18,6 @@ export default function Configuracoes() {
     nome: empresa.nome, documento: empresa.documento || '', telefone: empresa.telefone || '',
     endereco: empresa.endereco || '', comissao_percentual: empresa.comissao_percentual || 0,
   });
-  const [msg, setMsg] = useState('');
   const [erro, setErro] = useState('');
   const [usuarios, setUsuarios] = useState([]);
   const [form, setForm] = useState(null);
@@ -26,14 +25,14 @@ export default function Configuracoes() {
   const carregar = useCallback(() => api('/usuarios').then(setUsuarios).catch((e) => setErro(e.message)), []);
   useEffect(() => { carregar(); }, [carregar]);
 
-  const mudar = (k) => (e) => { setMsg(''); setF((s) => ({ ...s, [k]: e.target.value })); };
+  const mudar = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
 
   const salvar = async (e) => {
     e.preventDefault();
     setErro('');
     try {
       setEmpresa(await api('/empresa', { method: 'PUT', body: f }));
-      setMsg('Dados salvos. Eles aparecem no cabeçalho do comprovante.');
+      window.dispatchEvent(new CustomEvent('toast', { detail: 'Dados da empresa salvos com sucesso.' }));
     } catch (err) {
       setErro(err.message);
     }
@@ -51,7 +50,6 @@ export default function Configuracoes() {
         <label>Telefone<input value={f.telefone} onChange={mudar('telefone')} /></label>
         <label className="full">Endereço<input value={f.endereco} onChange={mudar('endereco')} /></label>
         <label>Comissão padrão dos vendedores (%)<input type="number" min="0" max="100" step="0.01" value={f.comissao_percentual} onChange={mudar('comissao_percentual')} /></label>
-        {msg && <div className="ok full">{msg}</div>}
         <div className="acoes full"><button className="btn primario">Salvar dados</button></div>
       </form>
 
@@ -84,7 +82,11 @@ export default function Configuracoes() {
           inicial={form}
           rota="/usuarios"
           onClose={() => setForm(null)}
-          onSalvo={() => { setForm(null); carregar(); }}
+          onSalvo={() => {
+            setForm(null);
+            carregar();
+            window.dispatchEvent(new CustomEvent('toast', { detail: 'Usuário salvo com sucesso.' }));
+          }}
         />
       )}
     </div>

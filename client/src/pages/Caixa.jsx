@@ -6,7 +6,6 @@ export default function Caixa() {
   const [caixa, setCaixa] = useState(null);
   const [carregado, setCarregado] = useState(false);
   const [erro, setErro] = useState('');
-  const [mensagem, setMensagem] = useState('');
   const [abertura, setAbertura] = useState('');
   const [contado, setContado] = useState('');
   const [movimento, setMovimento] = useState({ tipo: 'reforco', valor: '', descricao: '' });
@@ -24,14 +23,15 @@ export default function Caixa() {
   }, []);
   useEffect(() => { carregar(); }, [carregar]);
 
-  const executar = async (acao) => {
+  const executar = async (acao, mensagem = 'Operação de caixa registrada.') => {
     setSalvando(true);
     setErro('');
-    setMensagem('');
     try {
-      await acao();
+      const resultado = await acao();
       await carregar();
-      setMensagem('Operação de caixa registrada.');
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: typeof mensagem === 'function' ? mensagem(resultado) : mensagem,
+      }));
     } catch (e) {
       setErro(e.message);
     } finally {
@@ -44,23 +44,23 @@ export default function Caixa() {
     executar(async () => {
       await api('/caixa/abrir', { method: 'POST', body: { valorAbertura: Number(abertura) || 0 } });
       setAbertura('');
-    });
+    }, 'Caixa aberto com sucesso.');
   };
   const registrarMovimento = (e) => {
     e.preventDefault();
     executar(async () => {
       await api('/caixa/movimentos', { method: 'POST', body: { ...movimento, valor: Number(movimento.valor) } });
       setMovimento({ tipo: 'reforco', valor: '', descricao: '' });
-    });
+    }, 'Movimentação registrada com sucesso.');
   };
   const fechar = (e) => {
     e.preventDefault();
     if (!window.confirm('Fechar o caixa agora? As vendas não poderão ser registradas até abrir um novo caixa.')) return;
     executar(async () => {
       const resultado = await api('/caixa/fechar', { method: 'POST', body: { valorContado: Number(contado) || 0 } });
-      setMensagem(`Caixa fechado. Diferença: ${brl(resultado.diferenca)}.`);
       setContado('');
-    });
+      return resultado;
+    }, (resultado) => `Caixa fechado. Diferença: ${brl(resultado.diferenca)}.`);
   };
 
   if (!carregado) return <div className="carregando">Carregando situação do caixa…</div>;
@@ -68,7 +68,6 @@ export default function Caixa() {
     <div>
       <div className="topo"><h1>Abertura e fechamento de caixa</h1></div>
       {erro && <div className="alerta espaco-abaixo">{erro}</div>}
-      {mensagem && <div className="ok espaco-abaixo">{mensagem}</div>}
       {!caixa ? (
         <form className="card caixa-abertura" onSubmit={abrir}>
           <h2>Abrir caixa</h2>

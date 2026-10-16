@@ -79,7 +79,9 @@ export default function PDV() {
     if (!q) { setResultados([]); return undefined; }
     let vivo = true;
     const t = setTimeout(
-      () => api(`/produtos?q=${encodeURIComponent(q)}&ativos=1&limite=8`).then((r) => vivo && setResultados(r)).catch(() => {}),
+      () => api(`/produtos?q=${encodeURIComponent(q)}&ativos=1&limite=8`)
+        .then((r) => vivo && setResultados(r))
+        .catch((e) => vivo && setErro(e.message)),
       250
     );
     return () => { vivo = false; clearTimeout(t); };
