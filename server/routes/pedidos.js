@@ -3,6 +3,7 @@ const { z } = require('zod');
 const { pool, query, tx } = require('../db');
 const { HttpError, wrap, parse, arred, arred3 } = require('../util');
 const { soCaixa, soVendedor } = require('../auth');
+const { caixaAberto, movimentoCaixa } = require('../cash');
 
 const uuid = z.string().uuid().transform((s) => s.toLowerCase());
 const novoPedido = z.object({
@@ -18,7 +19,8 @@ const pagamentosPedido = z.object({
   pagamentos: z.array(z.object({
     forma: z.enum(['dinheiro', 'pix', 'debito', 'credito']),
     valor: z.coerce.number().min(0.01).max(9999999).transform(arred),
-  })).min(1).max(10),
+  })).max(10).default([]),
+  fiado: z.boolean().default(false),
 });
 
 async function carregarPedido(db, empresaId, id) {
@@ -79,7 +81,7 @@ router.post('/', soVendedor, wrap(async (req, res) => {
         `update produtos
             set estoque = case when controla_estoque then estoque - $3 else estoque end
           where id = $1 and empresa_id = $2 and ativo and (not controla_estoque or estoque >= $3)
-          returning id, codigo, descricao, unidade, preco, controla_estoque`,
+          returning id, codigo, descricao, unidade, preco, controla_estoque, estoque`,
         [id, emp, qtds.get(id)]
       );
       if (!r.rows[0]) {
@@ -129,6 +131,16 @@ router.post('/', soVendedor, wrap(async (req, res) => {
           l.quantidade, l.preco, l.total, l.estoqueReservado]
       );
     }
+    for (const [produtoId, quantidade] of qtds) {
+      const p = prods.get(produtoId);
+      if (!p.controla_estoque) continue;
+      await c.query(
+        `insert into estoque_movimentos
+          (empresa_id, produto_id, produto_descricao, usuario_id, venda_id, tipo, variacao, estoque_apos, motivo)
+         values ($1, $2, $3, $4, $5, 'reserva_pedido', $6, $7, 'Pedido aguardando pagamento')`,
+        [emp, produtoId, p.descricao, req.user.id, pedidoId, -quantidade, p.estoque]
+      );
+    }
     return carregarPedido(c, emp, pedidoId);
   });
 
@@ -144,12 +156,13 @@ router.post('/:id/finalizar', soCaixa, wrap(async (req, res) => {
       [req.params.id, emp]
     );
     if (!r.rows[0]) throw new HttpError(404, 'Pedido não encontrado.');
-    if (r.rows[0].status === 'concluida') return { id: req.params.id };
+    if (r.rows[0].status === 'concluida') return { id: req.params.id, jaFinalizado: true };
     if (r.rows[0].status !== 'pendente') throw new HttpError(409, 'Este pedido já foi cancelado.');
 
+    const caixaId = await caixaAberto(c, emp, req.user.id);
     const total = Number(r.rows[0].total);
     const pago = arred(d.pagamentos.reduce((s, p) => s + p.valor, 0));
-    if (pago < total) throw new HttpError(400, `Pagamento insuficiente: faltam R$ ${(total - pago).toFixed(2)}.`);
+    if (pago < total && !d.fiado) throw new HttpError(400, `Pagamento insuficiente: faltam R$ ${(total - pago).toFixed(2)}. Marque "fiado" para deixar o saldo em aberto.`);
     const troco = arred(pago - total);
     const emDinheiro = arred(d.pagamentos.filter((p) => p.forma === 'dinheiro').reduce((s, p) => s + p.valor, 0));
     if (troco > emDinheiro) throw new HttpError(400, 'O troco só pode sair de pagamento em dinheiro.');
@@ -163,10 +176,16 @@ router.post('/:id/finalizar', soCaixa, wrap(async (req, res) => {
     );
     for (const [index, p] of d.pagamentos.entries()) {
       await c.query(
-        'insert into venda_pagamentos (venda_id, empresa_id, ordem, forma, valor) values ($1, $2, $3, $4, $5)',
-        [req.params.id, emp, index + 1, p.forma, p.valor]
+        `insert into venda_pagamentos (venda_id, empresa_id, ordem, forma, valor, origem, caixa_id)
+         values ($1, $2, $3, $4, $5, 'venda', $6)`,
+        [req.params.id, emp, index + 1, p.forma, p.valor, caixaId]
       );
     }
+    const cashPaid = arred(d.pagamentos.filter((p) => p.forma === 'dinheiro').reduce((s, p) => s + p.valor, 0) - troco);
+    await movimentoCaixa(c, {
+      caixaId, empresaId: emp, usuarioId: req.user.id, tipo: 'venda',
+      valor: cashPaid, descricao: `Pedido ${r.rows[0].id}`,
+    });
     return { id: req.params.id };
   });
   res.json(pedido);
@@ -184,12 +203,27 @@ router.post('/:id/cancelar', soVendedor, wrap(async (req, res) => {
     if (req.user.perfil !== 'admin' && r.rows[0].vendedor_id !== req.user.id) {
       throw new HttpError(403, 'Você só pode cancelar os pedidos que criou.');
     }
-    await c.query(
+    const libera = await c.query(
       `update produtos p set estoque = p.estoque + i.quantidade
          from venda_itens i
-        where i.venda_id = $1 and i.produto_id = p.id and p.empresa_id = $2 and i.estoque_reservado`,
+        where i.venda_id = $1 and i.produto_id = p.id and p.empresa_id = $2
+          and i.estoque_reservado and i.quantidade_devolvida = 0
+       returning p.id, p.descricao, p.estoque`,
       [req.params.id, emp]
     );
+    for (const p of libera.rows) {
+      const item = await c.query(
+        `select quantidade from venda_itens where venda_id = $1 and produto_id = $2 and estoque_reservado`,
+        [req.params.id, p.id]
+      );
+      const quantidade = item.rows.reduce((s, i) => s + Number(i.quantidade), 0);
+      await c.query(
+        `insert into estoque_movimentos
+          (empresa_id, produto_id, produto_descricao, usuario_id, venda_id, tipo, variacao, estoque_apos, motivo)
+         values ($1, $2, $3, $4, $5, 'liberacao_pedido', $6, $7, 'Pedido cancelado')`,
+        [emp, p.id, p.descricao, req.user.id, req.params.id, quantidade, p.estoque]
+      );
+    }
     await c.query("update vendas set status = 'cancelada', cancelada_em = now() where id = $1", [req.params.id]);
     return carregarPedido(c, emp, req.params.id);
   });

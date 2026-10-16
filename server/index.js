@@ -44,6 +44,9 @@ app.use('/api/produtos', autenticar, require('./routes/produtos'));
 app.use('/api/clientes', autenticar, require('./routes/clientes'));
 app.use('/api/vendas', autenticar, require('./routes/vendas'));
 app.use('/api/pedidos', autenticar, require('./routes/pedidos'));
+app.use('/api/caixa', autenticar, require('./routes/caixa'));
+app.use('/api/dashboard', autenticar, require('./routes/dashboard'));
+app.use('/api/relatorios', autenticar, require('./routes/relatorios'));
 app.use('/api', require('./routes/admin'));
 app.use('/api', (req, res) => res.status(404).json({ erro: 'Rota não encontrada.' }));
 
