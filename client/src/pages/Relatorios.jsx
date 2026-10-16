@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { arred, brl, hoje } from '../utils.js';
+import { brl, hoje } from '../utils.js';
 
 function csvEscape(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`;
