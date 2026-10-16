@@ -17,6 +17,7 @@ function Conteudo({ v }) {
       <div>Venda nº {String(v.numero).padStart(6, '0')}</div>
       <div>{dataHora(v.criado_em)}</div>
       <div>Cliente: {v.cliente_nome || 'Consumidor final'}</div>
+      {v.vendedor_nome && <div>Vendedor: {v.vendedor_nome}</div>}
       <div>Operador: {v.usuario_nome}</div>
       <hr />
       {v.itens.map((i) => (

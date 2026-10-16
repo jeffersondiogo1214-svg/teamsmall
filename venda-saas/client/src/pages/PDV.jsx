@@ -129,6 +129,7 @@ export default function PDV() {
   };
 
   const selecionarPedido = (pedido) => {
+    if (itens.length && !window.confirm('Substituir a venda atual pelo pedido selecionado?')) return;
     setPedidoSelecionado(pedido);
     setItens(pedido.itens.map((i) => ({
       produtoId: i.produto_id,

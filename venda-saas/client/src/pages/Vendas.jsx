@@ -53,7 +53,7 @@ export default function Vendas() {
       <div className="card tabela-wrap">
         <table className="tabela">
           <thead>
-            <tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Operador</th><th className="dir">Total</th><th>Situação</th><th /></tr>
+            <tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Vendedor / caixa</th><th className="dir">Total</th><th>Situação</th><th /></tr>
           </thead>
           <tbody>
             {lista.map((v) => (
@@ -61,7 +61,7 @@ export default function Vendas() {
                 <td>{String(v.numero).padStart(6, '0')}</td>
                 <td>{dataHora(v.criado_em)}</td>
                 <td>{v.cliente_nome || 'Consumidor final'}</td>
-                <td>{v.usuario_nome}</td>
+                <td>{v.vendedor_nome ? `${v.vendedor_nome} / ${v.usuario_nome}` : v.usuario_nome}</td>
                 <td className="dir"><b>{brl(v.total)}</b></td>
                 <td>{v.status === 'cancelada' ? 'Cancelada' : 'Concluída'}</td>
                 <td className="dir"><button className="link" onClick={() => abrir(v.id)}>Ver comprovante</button></td>

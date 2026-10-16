@@ -7,7 +7,7 @@ import { FormCadastro } from '../components/Cadastro.jsx';
 
 const camposCliente = [
   { k: 'nome', t: 'Nome', req: true, full: true },
-  { k: 'documento', t: 'CPF ou CNPJ' },
+  { k: 'documento', t: 'CPF ou CNPJ', req: true },
   { k: 'telefone', t: 'Telefone' },
   { k: 'email', t: 'E-mail', tipo: 'email', full: true },
   { k: 'endereco', t: 'Endereço', full: true },

@@ -14,6 +14,8 @@ Sistema de vendas multiempresa: cada empresa tem seu próprio login e seus próp
 
 > Use o **Session pooler**, não a conexão direta: a direta usa IPv6 e o Render só alcança por IPv4.
 
+Depois de atualizar um sistema já publicado, execute novamente `supabase/schema.sql` no SQL Editor para aplicar alterações compatíveis ao banco, incluindo o perfil Vendedor e pedidos pendentes.
+
 ### 2. Servidor no Render
 
 1. Envie esta pasta para um repositório no GitHub.
@@ -39,7 +41,8 @@ Teste de ponta a ponta: com o servidor rodando, `npm test`. Ele cria empresas de
 ## Como funciona
 
 - **Multiempresa:** toda tabela tem `empresa_id` e toda consulta filtra por ele, vindo do login e nunca do navegador. As tabelas têm RLS ligado e sem políticas, então a API pública do Supabase não acessa nada.
-- **Perfis:** Administrador (produtos, usuários, dados da empresa, cancelar vendas) e Caixa (vende, cadastra clientes, consulta).
+- **Perfis:** Administrador (acesso total), Vendedor (monta pedidos para clientes e reserva o estoque) e Caixa (localiza pedidos no PDV, recebe pagamentos e também pode fazer vendas diretas).
+- **Pedido e caixa:** o vendedor fecha o pedido na tela Pedidos; o caixa seleciona o pedido no PDV e finaliza o pagamento. Cancelar um pedido pendente libera o estoque reservado. A venda registra vendedor e caixa.
 - **PDV:** bipe o código de barras e tecle Enter, ou busque por nome ou código. `F2` foca a busca e `F9` finaliza. Aceita pagamento dividido (dinheiro, PIX, débito, crédito) e desconto; troco só sobre dinheiro.
 - **Venda:** preço e estoque vêm do banco. A baixa de estoque é atômica (duas vendas simultâneas não vendem a mesma última unidade), a numeração é sequencial por empresa e reenviar a mesma venda não duplica.
 - **Cancelamento:** devolve os itens ao estoque.

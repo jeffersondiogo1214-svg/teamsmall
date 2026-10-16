@@ -42,7 +42,8 @@ async function carregarPedido(db, empresaId, id) {
 
 router.get('/', wrap(async (req, res) => {
   const { rows } = await query(
-    `select v.id, v.numero, v.criado_em, v.cliente_nome, v.vendedor_id, v.vendedor_nome, v.total,
+    `select v.id, v.numero, v.criado_em, v.cliente_id, v.cliente_nome, v.vendedor_id, v.vendedor_nome,
+            v.subtotal, v.desconto, v.total,
             coalesce((
               select json_agg(json_build_object(
                 'id', i.id, 'produto_id', i.produto_id, 'codigo', i.codigo,
