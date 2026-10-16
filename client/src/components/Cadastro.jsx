@@ -17,9 +17,12 @@ export function FormCadastro({ titulo, campos, inicial, rota, onClose, onSalvo }
     setSalvando(true);
     const body = {};
     for (const c of campos) {
+      if (c.mostrarSe && !c.mostrarSe(f)) continue;
       const v = f[c.k];
       if (c.tipo === 'password' && !v) continue;
-      body[c.k] = c.tipo === 'number' ? Number(v) || 0 : c.tipo === 'check' ? Boolean(v) : v ?? '';
+      body[c.k] = c.tipo === 'number'
+        ? c.nullable && v === '' ? null : Number(v) || 0
+        : c.tipo === 'check' ? Boolean(v) : v ?? '';
     }
     try {
       await api(edicao ? `${rota}/${inicial.id}` : rota, { method: edicao ? 'PUT' : 'POST', body });
@@ -33,7 +36,7 @@ export function FormCadastro({ titulo, campos, inicial, rota, onClose, onSalvo }
   return (
     <Modal titulo={titulo} onClose={onClose}>
       <form className="form" onSubmit={enviar}>
-        {campos.filter((c) => !(c.soEdicao && !edicao)).map((c) =>
+        {campos.filter((c) => !(c.soEdicao && !edicao) && (!c.mostrarSe || c.mostrarSe(f))).map((c) =>
           c.tipo === 'check' ? (
             <label key={c.k} className="check full">
               <input type="checkbox" checked={Boolean(f[c.k])} onChange={mudar(c)} /> {c.t}
@@ -73,14 +76,25 @@ export function FormCadastro({ titulo, campos, inicial, rota, onClose, onSalvo }
 }
 
 /* Tela de listagem com busca, criação, edição e remoção */
-export default function Cadastro({ titulo, singular, rota, colunas, campos, vazio, podeEditar, rotuloRemover = 'Remover' }) {
+export default function Cadastro({
+  titulo, singular, rota, colunas, campos, vazio, podeEditar,
+  rotuloRemover = 'Remover', vazioTexto = 'Nenhum registro cadastrado.',
+  renderExtra,
+}) {
   const [q, setQ] = useState('');
   const [lista, setLista] = useState([]);
   const [erro, setErro] = useState('');
   const [form, setForm] = useState(null);
+  const [carregando, setCarregando] = useState(true);
 
   const carregar = useCallback(
-    () => api(`${rota}?q=${encodeURIComponent(q.trim())}&limite=200`).then(setLista).catch((e) => setErro(e.message)),
+    () => {
+      setCarregando(true);
+      return api(`${rota}?q=${encodeURIComponent(q.trim())}&limite=200`)
+        .then((r) => { setLista(r); setErro(''); })
+        .catch((e) => setErro(e.message))
+        .finally(() => setCarregando(false));
+    },
     [rota, q]
   );
   useEffect(() => {
@@ -111,22 +125,31 @@ export default function Cadastro({ titulo, singular, rota, colunas, campos, vazi
           <thead>
             <tr>
               {colunas.map((c) => <th key={c.k} className={c.dir ? 'dir' : ''}>{c.t}</th>)}
-              {podeEditar && <th />}
+              {(podeEditar || renderExtra) && <th />}
             </tr>
           </thead>
           <tbody>
             {lista.map((x) => (
               <tr key={x.id} className={x.ativo === false ? 'inativo' : ''}>
                 {colunas.map((c) => <td key={c.k} className={c.dir ? 'dir' : ''}>{c.f ? c.f(x) : x[c.k]}</td>)}
-                {podeEditar && (
+                {(podeEditar || renderExtra) && (
                   <td className="dir nowrap">
-                    <button className="link" onClick={() => setForm(x)}>Editar</button>
-                    {x.ativo !== false && <button className="link perigo" onClick={() => remover(x)}>{rotuloRemover}</button>}
+                    {renderExtra?.(x)}
+                    {podeEditar && <>
+                      <button className="link" onClick={() => setForm(x)}>Editar</button>
+                      {x.ativo !== false && <button className="link perigo" onClick={() => remover(x)}>{rotuloRemover}</button>}
+                    </>}
                   </td>
                 )}
               </tr>
             ))}
-            {!lista.length && <tr><td colSpan={colunas.length + 1} className="vazio">Nada por aqui ainda.</td></tr>}
+            {!carregando && !lista.length && (
+              <tr><td colSpan={colunas.length + (podeEditar || renderExtra ? 1 : 0)} className="vazio">
+                {erro ? 'Não foi possível carregar os dados.' : vazioTexto}
+                {podeEditar && !q && <div><button className="btn primario espaco-cima" onClick={() => setForm(vazio)}>Cadastrar o primeiro {singular}</button></div>}
+              </td></tr>
+            )}
+            {carregando && !lista.length && <tr><td colSpan={colunas.length + 1} className="vazio">Carregando…</td></tr>}
           </tbody>
         </table>
       </div>

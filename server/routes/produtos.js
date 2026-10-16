@@ -9,7 +9,7 @@ const schema = z.object({
   barras: opt(50),
   descricao: z.string().trim().min(1).max(160),
   categoria: opt(80),
-  imagem_url: z.string().trim().url().max(500).nullish().transform((v) => v || null),
+  imagem_url: z.preprocess((v) => v === '' ? null : v, z.string().trim().url().max(500).nullish()),
   unidade: z.string().trim().min(1).max(6).default('UN').transform((v) => v.toUpperCase()),
   preco: z.coerce.number().min(0).max(9999999).transform(arred),
   estoque: z.coerce.number().min(0).max(9999999).default(0),

@@ -152,7 +152,7 @@ router.post('/:id/finalizar', soCaixa, wrap(async (req, res) => {
   const emp = req.user.empresa_id;
   const pedido = await tx(async (c) => {
     const r = await c.query(
-      'select id, total, status from vendas where id = $1 and empresa_id = $2 for update',
+      'select id, numero, total, status from vendas where id = $1 and empresa_id = $2 for update',
       [req.params.id, emp]
     );
     if (!r.rows[0]) throw new HttpError(404, 'Pedido não encontrado.');
@@ -184,7 +184,7 @@ router.post('/:id/finalizar', soCaixa, wrap(async (req, res) => {
     const cashPaid = arred(d.pagamentos.filter((p) => p.forma === 'dinheiro').reduce((s, p) => s + p.valor, 0) - troco);
     await movimentoCaixa(c, {
       caixaId, empresaId: emp, usuarioId: req.user.id, tipo: 'venda',
-      valor: cashPaid, descricao: `Pedido ${r.rows[0].id}`,
+      valor: cashPaid, descricao: `Pedido ${r.rows[0].numero}`,
     });
     return { id: req.params.id };
   });

@@ -10,7 +10,8 @@ const DUMMY_HASH = bcrypt.hashSync('senha-falsa-para-igualar-o-tempo', 10);
 async function sessao(userId) {
   const { rows } = await query(
     `select u.id, u.nome, u.email, u.perfil,
-            e.id as empresa_id, e.nome as empresa_nome, e.documento, e.telefone, e.endereco
+            e.id as empresa_id, e.nome as empresa_nome, e.documento, e.telefone, e.endereco,
+            e.comissao_percentual
        from usuarios u join empresas e on e.id = u.empresa_id
       where u.id = $1`,
     [userId]
@@ -18,7 +19,10 @@ async function sessao(userId) {
   const r = rows[0];
   return {
     usuario: { id: r.id, nome: r.nome, email: r.email, perfil: r.perfil },
-    empresa: { id: r.empresa_id, nome: r.empresa_nome, documento: r.documento, telefone: r.telefone, endereco: r.endereco },
+    empresa: {
+      id: r.empresa_id, nome: r.empresa_nome, documento: r.documento,
+      telefone: r.telefone, endereco: r.endereco, comissao_percentual: r.comissao_percentual,
+    },
   };
 }
 

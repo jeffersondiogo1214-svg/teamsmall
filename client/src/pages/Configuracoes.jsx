@@ -7,13 +7,17 @@ const camposUsuario = [
   { k: 'nome', t: 'Nome', req: true, full: true },
   { k: 'email', t: 'E-mail', tipo: 'email', req: true, full: true, soNovo: true },
   { k: 'perfil', t: 'Perfil', tipo: 'select', full: true, opcoes: [['caixa', 'Caixa: finaliza vendas e cadastra clientes'], ['vendedor', 'Vendedor: monta pedidos para o caixa'], ['admin', 'Administrador: acesso total']] },
+  { k: 'comissao_percentual', t: 'Comissão individual (%)', tipo: 'number', step: '0.01', nullable: true, dica: 'Somente vendedores. Em branco usa o percentual padrão da empresa.', mostrarSe: (f) => f.perfil === 'vendedor' },
   { k: 'senha', t: 'Senha', tipo: 'password', full: true, reqNovo: true, dica: 'Mínimo de 8 caracteres. Ao editar, deixe em branco para manter a atual.' },
   { k: 'ativo', t: 'Usuário ativo', tipo: 'check', soEdicao: true },
 ];
 
 export default function Configuracoes() {
   const { empresa, setEmpresa } = useAuth();
-  const [f, setF] = useState({ nome: empresa.nome, documento: empresa.documento || '', telefone: empresa.telefone || '', endereco: empresa.endereco || '' });
+  const [f, setF] = useState({
+    nome: empresa.nome, documento: empresa.documento || '', telefone: empresa.telefone || '',
+    endereco: empresa.endereco || '', comissao_percentual: empresa.comissao_percentual || 0,
+  });
   const [msg, setMsg] = useState('');
   const [erro, setErro] = useState('');
   const [usuarios, setUsuarios] = useState([]);
@@ -46,6 +50,7 @@ export default function Configuracoes() {
         <label>CNPJ ou CPF<input value={f.documento} onChange={mudar('documento')} /></label>
         <label>Telefone<input value={f.telefone} onChange={mudar('telefone')} /></label>
         <label className="full">Endereço<input value={f.endereco} onChange={mudar('endereco')} /></label>
+        <label>Comissão padrão dos vendedores (%)<input type="number" min="0" max="100" step="0.01" value={f.comissao_percentual} onChange={mudar('comissao_percentual')} /></label>
         {msg && <div className="ok full">{msg}</div>}
         <div className="acoes full"><button className="btn primario">Salvar dados</button></div>
       </form>
@@ -56,13 +61,14 @@ export default function Configuracoes() {
       </div>
       <div className="card tabela-wrap">
         <table className="tabela">
-          <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Situação</th><th /></tr></thead>
+          <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Comissão</th><th>Situação</th><th /></tr></thead>
           <tbody>
             {usuarios.map((u) => (
               <tr key={u.id} className={u.ativo ? '' : 'inativo'}>
                 <td>{u.nome}</td>
                 <td>{u.email}</td>
                 <td>{({ admin: 'Administrador', caixa: 'Caixa', vendedor: 'Vendedor' })[u.perfil]}</td>
+                <td>{u.perfil === 'vendedor' ? `${u.comissao_percentual ?? empresa.comissao_percentual ?? 0}%` : '—'}</td>
                 <td>{u.ativo ? 'Ativo' : 'Inativo'}</td>
                 <td className="dir"><button className="link" onClick={() => setForm({ ...u, senha: '' })}>Editar</button></td>
               </tr>

@@ -226,7 +226,7 @@ router.post('/', soCaixa, wrap(async (req, res) => {
         `update produtos
             set estoque = case when controla_estoque then estoque - $3 else estoque end
           where id = $1 and empresa_id = $2 and ativo and (not controla_estoque or estoque >= $3)
-          returning id, codigo, descricao, unidade, preco, controla_estoque`,
+          returning id, codigo, descricao, unidade, preco, controla_estoque, estoque`,
         [id, emp, qtds.get(id)]
       );
       if (!r.rows[0]) {
@@ -281,6 +281,16 @@ router.post('/', soCaixa, wrap(async (req, res) => {
         [vid, emp, seq, l.produtoId, l.codigo, l.descricao, l.unidade, l.quantidade, l.preco, l.total, prods.get(l.produtoId).controla_estoque]
       );
     }
+    for (const [produtoId, quantidade] of qtds) {
+      const p = prods.get(produtoId);
+      if (!p.controla_estoque) continue;
+      await c.query(
+        `insert into estoque_movimentos
+          (empresa_id, produto_id, produto_descricao, usuario_id, venda_id, tipo, variacao, estoque_apos, motivo)
+         values ($1, $2, $3, $4, $5, 'venda', $6, $7, 'Venda concluída')`,
+        [emp, produtoId, p.descricao, req.user.id, vid, -quantidade, p.estoque]
+      );
+    }
     let ordem = 0;
     for (const p of d.pagamentos) {
       ordem += 1;
@@ -300,25 +310,38 @@ router.post('/', soCaixa, wrap(async (req, res) => {
   res.status(201).json(venda);
 }));
 
-/* Cancela a venda e devolve os itens ao estoque (só administrador) */
-router.post('/:id/cancelar', soAdmin, wrap(async (req, res) => {
+router.post('/:id/devolucoes', soCaixa, wrap(async (req, res) => {
+  const d = parse(devolucao, req.body);
   const emp = req.user.empresa_id;
-  const venda = await tx(async (c) => {
-    const s = await c.query('select id, status from vendas where id = $1 and empresa_id = $2 for update', [req.params.id, emp]);
-    if (!s.rows[0]) throw new HttpError(404, 'Venda não encontrada.');
-    if (s.rows[0].status !== 'concluida') throw new HttpError(409, 'Esta venda já está cancelada.');
-    const id = s.rows[0].id;
-    await c.query(
-      `update produtos p set estoque = p.estoque + i.quantidade
-         from venda_itens i
-        where i.venda_id = $1 and i.produto_id = p.id and p.empresa_id = $2 and i.estoque_reservado`,
-      [id, emp]
-    );
-    const d = parse(z.object({ motivo: z.string().trim().min(3).max(300) }), req.body);
-    await c.query("update vendas set status = 'cancelada', cancelada_em = now(), motivo_cancelamento = $2 where id = $1", [id, d.motivo]);
-    return carregar(c, emp, id);
+  await tx(async (c) => {
+    await registrarDevolucao(c, {
+      vendaId: req.params.id, empresaId: emp, usuario: req.user,
+      motivo: d.motivo, itensSolicitados: d.itens, formaReembolso: d.formaReembolso,
+    });
   });
-  res.json(venda);
+  res.json(await carregar(pool, emp, req.params.id));
+}));
+
+router.post('/:id/cancelar', soCaixa, wrap(async (req, res) => {
+  const d = parse(z.object({
+    motivo: z.string().trim().min(3).max(300),
+    formaReembolso: z.enum(['dinheiro', 'pix', 'debito', 'credito']).nullish(),
+  }), req.body);
+  const emp = req.user.empresa_id;
+  await tx(async (c) => {
+    const itens = await c.query(
+      `select id as "itemId", quantidade - quantidade_devolvida as quantidade
+         from venda_itens where venda_id = $1 and quantidade_devolvida < quantidade`,
+      [req.params.id]
+    );
+    if (!itens.rows.length) throw new HttpError(409, 'Esta venda já foi totalmente devolvida ou cancelada.');
+    await registrarDevolucao(c, {
+      vendaId: req.params.id, empresaId: emp, usuario: req.user,
+      motivo: d.motivo, itensSolicitados: itens.rows,
+      formaReembolso: d.formaReembolso, cancelar: true,
+    });
+  });
+  res.json(await carregar(pool, emp, req.params.id));
 }));
 
 module.exports = router;

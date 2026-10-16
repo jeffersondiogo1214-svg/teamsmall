@@ -8,6 +8,9 @@ import Produtos from './pages/Produtos.jsx';
 import Clientes from './pages/Clientes.jsx';
 import Configuracoes from './pages/Configuracoes.jsx';
 import Pedidos from './pages/Pedidos.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import Relatorios from './pages/Relatorios.jsx';
+import Caixa from './pages/Caixa.jsx';
 
 export default function App() {
   const { usuario, carregando, admin } = useAuth();
@@ -17,11 +20,14 @@ export default function App() {
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={vendedor ? <Navigate to="/pedidos" replace /> : <PDV />} />
+        <Route path="/" element={vendedor ? <Navigate to="/pedidos" replace /> : admin ? <Dashboard /> : <PDV />} />
+        <Route path="/pdv" element={admin ? <PDV /> : <Navigate to="/" replace />} />
         <Route path="/pedidos" element={admin || vendedor ? <Pedidos /> : <Navigate to="/" replace />} />
         <Route path="/vendas" element={!vendedor ? <Vendas /> : <Navigate to="/pedidos" replace />} />
         <Route path="/produtos" element={admin ? <Produtos /> : <Navigate to={vendedor ? '/pedidos' : '/'} replace />} />
         <Route path="/clientes" element={<Clientes />} />
+        <Route path="/caixa" element={!vendedor ? <Caixa /> : <Navigate to="/pedidos" replace />} />
+        <Route path="/relatorios" element={admin ? <Relatorios /> : <Navigate to={vendedor ? '/pedidos' : '/'} replace />} />
         {admin && <Route path="/configuracoes" element={<Configuracoes />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

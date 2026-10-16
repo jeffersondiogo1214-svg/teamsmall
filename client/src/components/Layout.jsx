@@ -10,6 +10,10 @@ const I = {
   config: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z',
   sair: 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9',
 };
+I.dashboard = 'M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z';
+I.relatorio = 'M4 19V5M4 19h17M8 15l3-4 3 2 5-7';
+I.caixa = 'M3 6h18v13H3zM7 6V4h10v2M12 10v5M9 13h6';
+
 const Icone = ({ d }) => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
 );
@@ -20,9 +24,12 @@ export default function Layout({ children }) {
   const vendedor = usuario.perfil === 'vendedor';
   const classe = ({ isActive }) => (isActive ? 'ativo' : '');
   const itens = [
-    !vendedor && { to: '/', end: true, nome: 'Caixa (PDV)', ic: I.pdv, grupo: 'Operação' },
+    admin && { to: '/', end: true, nome: 'Painel', ic: I.dashboard, grupo: 'Gestão' },
+    !vendedor && { to: admin ? '/pdv' : '/', end: true, nome: 'Caixa (PDV)', ic: I.pdv, grupo: 'Operação' },
+    !vendedor && { to: '/caixa', nome: 'Abertura/fechamento', ic: I.caixa, grupo: 'Operação' },
     (admin || vendedor) && { to: '/pedidos', nome: 'Pedidos', ic: I.pedidos, grupo: 'Operação' },
     !vendedor && { to: '/vendas', nome: 'Vendas', ic: I.vendas, grupo: 'Operação' },
+    admin && { to: '/relatorios', nome: 'Relatórios', ic: I.relatorio, grupo: 'Gestão' },
     admin && { to: '/produtos', nome: 'Produtos', ic: I.produtos, grupo: 'Cadastros' },
     (admin || vendedor) && { to: '/clientes', nome: 'Clientes', ic: I.clientes, grupo: 'Cadastros' },
     admin && { to: '/configuracoes', nome: 'Configurações', ic: I.config, grupo: 'Sistema' },
