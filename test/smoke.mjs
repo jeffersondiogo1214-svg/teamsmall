@@ -37,7 +37,7 @@ passo('sem token e senha errada são barrados');
 
 const caneta = await esperar(201, '/produtos', { method: 'POST', token: ta, body: { codigo: '001', barras: '7890001', descricao: 'Caneta', preco: 10.5, estoque: 5 } });
 await esperar(409, '/produtos', { method: 'POST', token: ta, body: { codigo: '001', descricao: 'Repetido', preco: 1 } });
-const cliente = await esperar(201, '/clientes', { method: 'POST', token: ta, body: { nome: 'Maria Souza', telefone: '81999990000' } });
+const cliente = await esperar(201, '/clientes', { method: 'POST', token: ta, body: { nome: 'Maria Souza', documento: '00000000000', telefone: '81999990000' } });
 assert.equal((await esperar(200, '/produtos?q=7890001', { token: ta }))[0].id, caneta.id);
 passo('produto (código único por empresa), busca por código de barras e cliente');
 
@@ -95,9 +95,29 @@ assert.equal(await estoque(), 4);
 await esperar(409, `/vendas/${v1.id}/cancelar`, { method: 'POST', token: ta });
 passo('cancelamento devolve o estoque e não roda duas vezes');
 
+const vendedorEmail = `vendedor-${sufixo}@teste.com`;
+await esperar(201, '/usuarios', { method: 'POST', token: ta, body: { nome: 'Vera', email: vendedorEmail, senha: 'senha-forte-3', perfil: 'vendedor' } });
+const tv = (await esperar(200, '/auth/login', { method: 'POST', body: { email: vendedorEmail, senha: 'senha-forte-3' } })).token;
+const pedido = await esperar(201, '/pedidos', { method: 'POST', token: tv, body: { chave: randomUUID(), clienteId: cliente.id, itens: [item(1)], desconto: 0 } });
+assert.equal(pedido.status, 'pendente');
+assert.equal(pedido.vendedor_nome, 'Vera');
+assert.equal(await estoque(), 3);
+await esperar(403, '/vendas', { method: 'POST', token: tv, body: { itens: [item(1)], pagamentos: [{ forma: 'pix', valor: 10.5 }] } });
+passo('vendedor cria pedido para cliente e reserva estoque, mas não finaliza vendas');
+
 const caixaEmail = `caixa-${sufixo}@teste.com`;
 const caixa = await esperar(201, '/usuarios', { method: 'POST', token: ta, body: { nome: 'Caio', email: caixaEmail, senha: 'senha-forte-2', perfil: 'caixa' } });
 const tc = (await esperar(200, '/auth/login', { method: 'POST', body: { email: caixaEmail, senha: 'senha-forte-2' } })).token;
+await esperar(403, `/pedidos/${pedido.id}/finalizar`, { method: 'POST', token: tv, body: { pagamentos: [{ forma: 'pix', valor: 10.5 }] } });
+await esperar(200, `/pedidos/${pedido.id}/finalizar`, { method: 'POST', token: tc, body: { pagamentos: [{ forma: 'pix', valor: 10.5 }] } });
+const vendaPedido = await esperar(200, `/vendas/${pedido.id}`, { token: tc });
+assert.deepEqual([vendaPedido.status, vendaPedido.vendedor_nome, vendaPedido.usuario_nome, vendaPedido.pagamentos.length], ['concluida', 'Vera', 'Caio', 1]);
+assert.equal(await estoque(), 3);
+passo('caixa finaliza pedido pendente sem baixar o estoque duas vezes e a venda guarda vendedor e caixa');
+const pedidoCancelado = await esperar(201, '/pedidos', { method: 'POST', token: tv, body: { chave: randomUUID(), clienteId: cliente.id, itens: [item(1)] } });
+await esperar(200, `/pedidos/${pedidoCancelado.id}/cancelar`, { method: 'POST', token: tv });
+assert.equal(await estoque(), 3);
+passo('cancelar pedido devolve o estoque reservado');
 await esperar(403, '/produtos', { method: 'POST', token: tc, body: { codigo: '9', descricao: 'x', preco: 1 } });
 await esperar(403, `/vendas/${v2.id}/cancelar`, { method: 'POST', token: tc });
 await esperar(403, '/usuarios', { token: tc });

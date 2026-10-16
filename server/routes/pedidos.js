@@ -144,7 +144,8 @@ router.post('/:id/finalizar', soCaixa, wrap(async (req, res) => {
       [req.params.id, emp]
     );
     if (!r.rows[0]) throw new HttpError(404, 'Pedido não encontrado.');
-    if (r.rows[0].status !== 'pendente') throw new HttpError(409, 'Este pedido já foi finalizado ou cancelado.');
+    if (r.rows[0].status === 'concluida') return { id: req.params.id };
+    if (r.rows[0].status !== 'pendente') throw new HttpError(409, 'Este pedido já foi cancelado.');
 
     const total = Number(r.rows[0].total);
     const pago = arred(d.pagamentos.reduce((s, p) => s + p.valor, 0));

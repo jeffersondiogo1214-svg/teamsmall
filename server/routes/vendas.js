@@ -62,7 +62,7 @@ router.get('/', wrap(async (req, res) => {
     `select v.id, v.numero, coalesce(v.finalizada_em, v.criado_em) as criado_em,
             v.cliente_nome, v.usuario_nome, v.vendedor_nome, v.total, v.status
        from vendas v
-      where v.empresa_id = $1 and v.status <> 'pendente'
+      where v.empresa_id = $1 and v.status <> 'pendente' and v.finalizada_em is not null
         and ($2::date is null or coalesce(v.finalizada_em, v.criado_em) >= (($2::date)::timestamp at time zone $4))
         and ($3::date is null or coalesce(v.finalizada_em, v.criado_em) < ((($3::date) + 1)::timestamp at time zone $4))
         and ($5 = '' or v.numero::text = $5 or v.cliente_nome ilike '%' || $6 || '%')
@@ -138,8 +138,8 @@ router.post('/', soCaixa, wrap(async (req, res) => {
     );
     const v = await c.query(
       `insert into vendas (empresa_id, numero, chave, cliente_id, cliente_nome, usuario_id, usuario_nome,
-                           subtotal, desconto, total, troco, observacao)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning id`,
+                           subtotal, desconto, total, troco, observacao, finalizada_em)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now()) returning id`,
       [emp, n.rows[0].numero, d.chave ?? null, cliente?.id ?? null, cliente?.nome ?? null, req.user.id, req.user.nome,
         subtotal, d.desconto, total, troco, d.observacao]
     );

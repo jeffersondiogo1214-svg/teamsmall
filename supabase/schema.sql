@@ -88,7 +88,7 @@ alter table vendas add column if not exists vendedor_id uuid references usuarios
 alter table vendas add column if not exists vendedor_nome text;
 alter table vendas drop constraint if exists vendas_status_check;
 alter table vendas add constraint vendas_status_check check (status in ('pendente', 'concluida', 'cancelada'));
-update vendas set finalizada_em = criado_em where status = 'concluida' and finalizada_em is null;
+update vendas set finalizada_em = criado_em where status <> 'pendente' and finalizada_em is null;
 
 create table if not exists venda_itens (
   id         uuid primary key default gen_random_uuid(),
