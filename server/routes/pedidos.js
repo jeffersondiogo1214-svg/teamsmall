@@ -103,6 +103,12 @@ router.post('/', soVendedor, wrap(async (req, res) => {
     const subtotal = arred(linhas.reduce((s, l) => s + l.total, 0));
     if (d.desconto > subtotal) throw new HttpError(400, 'O desconto não pode ser maior que o subtotal.');
     const total = arred(subtotal - d.desconto);
+    const comissao = await c.query(
+      `select coalesce(u.comissao_percentual, e.comissao_percentual) as percentual
+         from empresas e left join usuarios u on u.id = $2
+        where e.id = $1`,
+      [emp, req.user.id]
+    );
     const cliente = await c.query(
       'select id, nome from clientes where id = $1 and empresa_id = $2 and ativo',
       [d.clienteId, emp]
@@ -115,10 +121,10 @@ router.post('/', soVendedor, wrap(async (req, res) => {
     );
     const v = await c.query(
       `insert into vendas (empresa_id, numero, chave, cliente_id, cliente_nome, vendedor_id, vendedor_nome,
-                           subtotal, desconto, total, status)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pendente') returning id`,
+                           subtotal, desconto, total, status, comissao_percentual)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pendente', $11) returning id`,
       [emp, n.rows[0].numero, d.chave ?? null, cliente.rows[0].id, cliente.rows[0].nome,
-        req.user.id, req.user.nome, subtotal, d.desconto, total]
+        req.user.id, req.user.nome, subtotal, d.desconto, total, comissao.rows[0]?.percentual ?? 0]
     );
     const pedidoId = v.rows[0].id;
 
@@ -204,24 +210,25 @@ router.post('/:id/cancelar', soVendedor, wrap(async (req, res) => {
       throw new HttpError(403, 'Você só pode cancelar os pedidos que criou.');
     }
     const libera = await c.query(
-      `update produtos p set estoque = p.estoque + i.quantidade
-         from venda_itens i
-        where i.venda_id = $1 and i.produto_id = p.id and p.empresa_id = $2
-          and i.estoque_reservado and i.quantidade_devolvida = 0
-       returning p.id, p.descricao, p.estoque`,
+      `with reservados as (
+         select produto_id, sum(quantidade - quantidade_devolvida) as quantidade
+           from venda_itens
+          where venda_id = $1 and produto_id is not null and estoque_reservado
+            and quantidade > quantidade_devolvida
+          group by produto_id
+       )
+       update produtos p set estoque = p.estoque + r.quantidade
+         from reservados r
+        where p.id = r.produto_id and p.empresa_id = $2
+       returning p.id, p.descricao, p.estoque, r.quantidade`,
       [req.params.id, emp]
     );
     for (const p of libera.rows) {
-      const item = await c.query(
-        `select quantidade from venda_itens where venda_id = $1 and produto_id = $2 and estoque_reservado`,
-        [req.params.id, p.id]
-      );
-      const quantidade = item.rows.reduce((s, i) => s + Number(i.quantidade), 0);
       await c.query(
         `insert into estoque_movimentos
           (empresa_id, produto_id, produto_descricao, usuario_id, venda_id, tipo, variacao, estoque_apos, motivo)
          values ($1, $2, $3, $4, $5, 'liberacao_pedido', $6, $7, 'Pedido cancelado')`,
-        [emp, p.id, p.descricao, req.user.id, req.params.id, quantidade, p.estoque]
+        [emp, p.id, p.descricao, req.user.id, req.params.id, p.quantidade, p.estoque]
       );
     }
     await c.query("update vendas set status = 'cancelada', cancelada_em = now() where id = $1", [req.params.id]);

@@ -22,7 +22,6 @@ export default function Pedidos() {
   const [desconto, setDesconto] = useState('');
   const [pedidos, setPedidos] = useState([]);
   const [erro, setErro] = useState('');
-  const [mensagem, setMensagem] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [chave, setChave] = useState(() => crypto.randomUUID());
   const [novoCliente, setNovoCliente] = useState(false);
@@ -53,6 +52,24 @@ export default function Pedidos() {
     return () => { vivo = false; clearTimeout(t); };
   }, [busca]);
 
+  const aoEnterProduto = async (e) => {
+    if (e.key !== 'Enter' || !busca.trim()) return;
+    e.preventDefault();
+    const q = busca.trim();
+    try {
+      const encontrados = await api(`/produtos?q=${encodeURIComponent(q)}&ativos=1&limite=8`);
+      const produto = encontrados.find((p) => p.barras === q || p.codigo === q)
+        || (encontrados.length === 1 ? encontrados[0] : null);
+      if (produto) adicionar(produto);
+      else {
+        setProdutos(encontrados);
+        setErro(encontrados.length ? 'Escolha o produto correto na lista.' : 'Produto não encontrado.');
+      }
+    } catch (e2) {
+      setErro(e2.message);
+    }
+  };
+
   const adicionar = (produto) => {
     setItens((lista) => {
       const existente = lista.findIndex((i) => i.produtoId === produto.id);
@@ -79,7 +96,6 @@ export default function Pedidos() {
 
   const salvarPedido = async () => {
     setErro('');
-    setMensagem('');
     setSalvando(true);
     try {
       const pedido = await api('/pedidos', {
@@ -91,7 +107,7 @@ export default function Pedidos() {
           desconto: desc,
         },
       });
-      setMensagem(`Pedido ${String(pedido.numero).padStart(6, '0')} salvo. O estoque foi reservado para o caixa.`);
+      window.dispatchEvent(new CustomEvent('toast', { detail: `Pedido ${String(pedido.numero).padStart(6, '0')} salvo. Estoque reservado para o caixa.` }));
       setItens([]);
       setCliente(null);
       setDesconto('');
@@ -124,7 +140,6 @@ export default function Pedidos() {
       <div className="topo"><h1>Montar pedido</h1></div>
       <p className="suave">Monte o pedido para o cliente. Ao salvar, o estoque fica reservado e o caixa conclui o pagamento no PDV.</p>
       {erro && <div className="alerta espaco-abaixo">{erro}</div>}
-      {mensagem && <div className="ok espaco-abaixo">{mensagem}</div>}
 
       <section className="pedido-montagem">
         <div className="pdv-venda">
@@ -133,6 +148,7 @@ export default function Pedidos() {
             placeholder="Buscar produto por nome, código ou código de barras"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
+            onKeyDown={aoEnterProduto}
             aria-label="Buscar produto para o pedido"
           />
           {produtos.length > 0 && (
@@ -140,7 +156,8 @@ export default function Pedidos() {
               {produtos.map((p) => (
                 <li key={p.id}>
                   <button onClick={() => adicionar(p)}>
-                    <span><b>{p.descricao}</b><small>Código {p.codigo}</small></span>
+                    {p.imagem_url && <img className="produto-miniatura" src={p.imagem_url} alt="" loading="lazy" />}
+                    <span><b>{p.descricao}</b><small>Código {p.codigo}{p.categoria ? ` · ${p.categoria}` : ''}</small></span>
                     <span className="dir"><b>{brl(p.preco)}</b><small>{p.controla_estoque ? `${qtd(p.estoque)} ${p.unidade} disponíveis` : 'sem controle de estoque'}</small></span>
                   </button>
                 </li>
@@ -220,7 +237,7 @@ export default function Pedidos() {
           inicial={{}}
           rota="/clientes"
           onClose={() => setNovoCliente(false)}
-          onSalvo={() => { setNovoCliente(false); setMensagem('Cliente cadastrado. Busque-o pelo nome para associar ao pedido.'); }}
+          onSalvo={() => { setNovoCliente(false); window.dispatchEvent(new CustomEvent('toast', { detail: 'Cliente cadastrado. Busque-o para associar ao pedido.' })); }}
         />
       )}
     </div>

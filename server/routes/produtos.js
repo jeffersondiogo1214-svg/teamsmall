@@ -33,8 +33,12 @@ router.get('/:id/movimentos', soAdmin, wrap(async (req, res) => {
 router.post('/:id/estoque', soAdmin, wrap(async (req, res) => {
   const d = parse(z.object({
     tipo: z.enum(['entrada', 'ajuste']),
-    quantidade: z.coerce.number().min(0.001).max(9999999),
+    quantidade: z.coerce.number().min(0).max(9999999),
     motivo: z.string().trim().min(3).max(200),
+  }).superRefine((value, ctx) => {
+    if (value.tipo === 'entrada' && value.quantidade <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['quantidade'], message: 'A entrada deve ser maior que zero.' });
+    }
   }), req.body);
   const movimento = await tx(async (c) => {
     const r = await c.query(
@@ -81,27 +85,54 @@ router.get('/', wrap(async (req, res) => {
 
 router.post('/', soAdmin, wrap(async (req, res) => {
   const d = parse(schema, req.body);
-  const { rows } = await query(
-    `insert into produtos (empresa_id, codigo, barras, descricao, categoria, imagem_url, unidade, preco, estoque, estoque_minimo, controla_estoque, ativo)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning ${COLS}`,
-    [req.user.empresa_id, d.codigo, d.barras, d.descricao, d.categoria, d.imagem_url, d.unidade,
-      d.preco, d.estoque, d.estoque_minimo, d.controla_estoque, d.ativo]
-  );
-  res.status(201).json(rows[0]);
+  const produto = await tx(async (c) => {
+    const { rows } = await c.query(
+      `insert into produtos (empresa_id, codigo, barras, descricao, categoria, imagem_url, unidade, preco, estoque, estoque_minimo, controla_estoque, ativo)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning ${COLS}`,
+      [req.user.empresa_id, d.codigo, d.barras, d.descricao, d.categoria, d.imagem_url, d.unidade,
+        d.preco, d.estoque, d.estoque_minimo, d.controla_estoque, d.ativo]
+    );
+    if (d.controla_estoque && d.estoque > 0) {
+      await c.query(
+        `insert into estoque_movimentos
+          (empresa_id, produto_id, produto_descricao, usuario_id, tipo, variacao, estoque_apos, motivo)
+         values ($1, $2, $3, $4, 'entrada', $5, $5, 'Estoque inicial no cadastro')`,
+        [req.user.empresa_id, rows[0].id, d.descricao, req.user.id, d.estoque]
+      );
+    }
+    return rows[0];
+  });
+  res.status(201).json(produto);
 }));
 
 router.put('/:id', soAdmin, wrap(async (req, res) => {
   const d = parse(schema, req.body);
-  const { rows } = await query(
-    `update produtos set codigo = $3, barras = $4, descricao = $5, categoria = $6, imagem_url = $7,
-            unidade = $8, preco = $9, estoque = $10, estoque_minimo = $11,
-            controla_estoque = $12, ativo = $13
-      where id = $1 and empresa_id = $2 returning ${COLS}`,
-    [req.params.id, req.user.empresa_id, d.codigo, d.barras, d.descricao, d.categoria, d.imagem_url,
-      d.unidade, d.preco, d.estoque, d.estoque_minimo, d.controla_estoque, d.ativo]
-  );
-  if (!rows[0]) throw new HttpError(404, 'Produto não encontrado.');
-  res.json(rows[0]);
+  const produto = await tx(async (c) => {
+    const anterior = await c.query(
+      'select estoque from produtos where id = $1 and empresa_id = $2 for update',
+      [req.params.id, req.user.empresa_id]
+    );
+    if (!anterior.rows[0]) throw new HttpError(404, 'Produto não encontrado.');
+    const { rows } = await c.query(
+      `update produtos set codigo = $3, barras = $4, descricao = $5, categoria = $6, imagem_url = $7,
+              unidade = $8, preco = $9, estoque = $10, estoque_minimo = $11,
+              controla_estoque = $12, ativo = $13
+        where id = $1 and empresa_id = $2 returning ${COLS}`,
+      [req.params.id, req.user.empresa_id, d.codigo, d.barras, d.descricao, d.categoria, d.imagem_url,
+        d.unidade, d.preco, d.estoque, d.estoque_minimo, d.controla_estoque, d.ativo]
+    );
+    const variacao = Number(d.estoque) - Number(anterior.rows[0].estoque);
+    if (variacao) {
+      await c.query(
+        `insert into estoque_movimentos
+          (empresa_id, produto_id, produto_descricao, usuario_id, tipo, variacao, estoque_apos, motivo)
+         values ($1, $2, $3, $4, 'ajuste', $5, $6, 'Estoque ajustado ao editar cadastro')`,
+        [req.user.empresa_id, req.params.id, d.descricao, req.user.id, variacao, d.estoque]
+      );
+    }
+    return rows[0];
+  });
+  res.json(produto);
 }));
 
 /* Não apaga: inativa, para preservar o histórico das vendas */

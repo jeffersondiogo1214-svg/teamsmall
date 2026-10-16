@@ -33,10 +33,10 @@ router.get('/', soAdmin, wrap(async (req, res) => {
     ),
     query(
       `select coalesce(v.vendedor_nome, v.usuario_nome, 'Sem vendedor') as vendedor,
-              coalesce(u.comissao_percentual, e.comissao_percentual) as percentual,
+              coalesce(v.comissao_percentual, u.comissao_percentual, e.comissao_percentual) as percentual,
               sum(v.total - coalesce(d.valor, 0)) as liquido,
               sum((v.total - coalesce(d.valor, 0)) *
-                  coalesce(u.comissao_percentual, e.comissao_percentual) / 100) as comissao
+                  coalesce(v.comissao_percentual, u.comissao_percentual, e.comissao_percentual) / 100) as comissao
          from vendas v
          join empresas e on e.id = v.empresa_id
          left join usuarios u on u.id = v.vendedor_id
@@ -51,13 +51,30 @@ router.get('/', soAdmin, wrap(async (req, res) => {
       params
     ),
     query(
-      `select p.forma, sum(p.valor) as recebido
-         from venda_pagamentos p
-         join vendas v on v.id = p.venda_id
-        where v.empresa_id = $1 and v.status = 'concluida'
-          and (coalesce(v.finalizada_em, v.criado_em) at time zone $4)::date >= $2::date
-          and (coalesce(v.finalizada_em, v.criado_em) at time zone $4)::date <= $3::date
-        group by p.forma order by recebido desc`,
+      `with pagamentos_por_origem as (
+         select p.venda_id, p.forma, p.origem, sum(p.valor) as valor, max(v.troco) as troco
+           from venda_pagamentos p
+           join vendas v on v.id = p.venda_id
+          where v.empresa_id = $1 and v.status in ('concluida', 'cancelada')
+            and (p.criado_em at time zone $4)::date between $2::date and $3::date
+          group by p.venda_id, p.forma, p.origem
+       ), recebimentos as (
+         select forma,
+                sum(valor - case when origem = 'venda' and forma = 'dinheiro' then troco else 0 end) as valor
+           from pagamentos_por_origem
+          group by forma
+         union all
+         select forma_reembolso as forma, -sum(valor_reembolsado) as valor
+           from venda_devolucoes
+          where empresa_id = $1 and forma_reembolso is not null
+            and (criado_em at time zone $4)::date between $2::date and $3::date
+          group by forma_reembolso
+       )
+       select forma, sum(valor) as recebido
+         from recebimentos
+        group by forma
+       having sum(valor) <> 0
+        order by recebido desc`,
       params
     ),
     query(

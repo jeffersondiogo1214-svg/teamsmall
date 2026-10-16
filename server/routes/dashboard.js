@@ -24,8 +24,8 @@ router.get('/', soAdmin, wrap(async (req, res) => {
       `select dias.dia::date as dia,
               coalesce(sum(v.total - coalesce(d.valor, 0)), 0) as total
          from generate_series(
-                (now() at time zone $2)::date - 6,
-                (now() at time zone $2)::date,
+                ((now() at time zone $2)::date - 6)::timestamp,
+                (now() at time zone $2)::date::timestamp,
                 interval '1 day'
               ) as dias(dia)
          left join vendas v

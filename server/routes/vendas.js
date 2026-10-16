@@ -39,7 +39,7 @@ async function carregar(db, empresaId, id) {
     `select v.id, v.numero, v.status, coalesce(v.finalizada_em, v.criado_em) as criado_em, v.cancelada_em,
             v.cliente_id, v.cliente_nome, v.usuario_nome, v.vendedor_nome,
             v.subtotal, v.desconto, v.total, v.troco, v.observacao,
-            greatest(v.total - coalesce(pg.valor, 0) - coalesce(d.valor, 0), 0) as saldo_devedor,
+            greatest(v.total - greatest(coalesce(pg.valor, 0) - v.troco, 0) - coalesce(d.valor, 0), 0) as saldo_devedor,
             e.nome as e_nome, e.documento as e_documento, e.telefone as e_telefone, e.endereco as e_endereco
        from vendas v join empresas e on e.id = v.empresa_id
        left join lateral (select sum(valor) as valor from venda_pagamentos where venda_id = v.id) pg on true
@@ -50,7 +50,7 @@ async function carregar(db, empresaId, id) {
   const r = v.rows[0];
   if (!r) return null;
   const itens = await db.query(
-    'select id, item, codigo, descricao, unidade, quantidade, preco_unit, total from venda_itens where venda_id = $1 order by item',
+    'select id, item, codigo, descricao, unidade, quantidade, preco_unit, total, quantidade_devolvida from venda_itens where venda_id = $1 order by item',
     [id]
   );
   const pagamentos = await db.query(
@@ -184,7 +184,9 @@ router.get('/', wrap(async (req, res) => {
   const { rows } = await query(
     `select v.id, v.numero, coalesce(v.finalizada_em, v.criado_em) as criado_em,
             v.cliente_nome, v.usuario_nome, v.vendedor_nome, v.total, v.status,
-            greatest(v.total - coalesce(pg.valor, 0) - coalesce(d.valor, 0), 0) as saldo_devedor
+            coalesce(d.valor, 0) as devolvido,
+            v.total - coalesce(d.valor, 0) as liquido,
+            greatest(v.total - greatest(coalesce(pg.valor, 0) - v.troco, 0) - coalesce(d.valor, 0), 0) as saldo_devedor
        from vendas v
        left join lateral (select sum(valor) as valor from venda_pagamentos where venda_id = v.id) pg on true
        left join lateral (select sum(valor) as valor from venda_devolucoes where venda_id = v.id) d on true
@@ -246,6 +248,7 @@ router.post('/', soCaixa, wrap(async (req, res) => {
     const total = arred(subtotal - d.desconto);
     const pago = arred(d.pagamentos.reduce((s, p) => s + p.valor, 0));
     if (pago < total && !d.fiado) throw new HttpError(400, `Pagamento insuficiente: faltam R$ ${(total - pago).toFixed(2)}. Marque "fiado" para deixar o saldo em aberto.`);
+    if (d.fiado && !d.clienteId) throw new HttpError(400, 'Selecione um cliente para registrar saldo em aberto.');
     const troco = arred(Math.max(pago - total, 0));
     const emDinheiro = arred(d.pagamentos.filter((p) => p.forma === 'dinheiro').reduce((s, p) => s + p.valor, 0));
     if (troco > emDinheiro) throw new HttpError(400, 'O troco só pode sair de pagamento em dinheiro.');

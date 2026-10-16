@@ -1,6 +1,5 @@
 const router = require('express').Router();
 const { z } = require('zod');
-const { z } = require('zod');
 const { query, tx } = require('../db');
 const { HttpError, wrap, parse, opt, arred } = require('../util');
 const { soCaixa } = require('../auth');
@@ -25,7 +24,7 @@ router.get('/:id/historico', wrap(async (req, res) => {
     `select v.id, v.numero, v.status, coalesce(v.finalizada_em, v.criado_em) as data,
             v.total, coalesce(pg.valor_pago, 0) as pago,
             coalesce(dev.valor_devolvido, 0) as devolvido,
-            greatest(v.total - coalesce(pg.valor_pago, 0) - coalesce(dev.valor_devolvido, 0), 0) as saldo_devedor
+            greatest(v.total - greatest(coalesce(pg.valor_pago, 0) - v.troco, 0) - coalesce(dev.valor_devolvido, 0), 0) as saldo_devedor
        from vendas v
        left join lateral (select sum(valor) as valor_pago from venda_pagamentos where venda_id = v.id) pg on true
        left join lateral (select sum(valor) as valor_devolvido from venda_devolucoes where venda_id = v.id) dev on true
@@ -37,7 +36,7 @@ router.get('/:id/historico', wrap(async (req, res) => {
   const resumo = await query(
     `select count(*)::int as compras,
             coalesce(sum(v.total - coalesce(dev.valor, 0)) filter (where v.status = 'concluida'), 0) as total_comprado,
-            coalesce(sum(greatest(v.total - coalesce(pg.valor, 0) - coalesce(dev.valor, 0), 0))
+            coalesce(sum(greatest(v.total - greatest(coalesce(pg.valor, 0) - v.troco, 0) - coalesce(dev.valor, 0), 0))
               filter (where v.status = 'concluida'), 0) as saldo_devedor
        from vendas v
        left join lateral (select sum(valor) as valor from venda_pagamentos where venda_id = v.id) pg on true
@@ -64,7 +63,8 @@ router.post('/:id/cobrancas', soCaixa, wrap(async (req, res) => {
     if (!venda.rows[0]) throw new HttpError(404, 'Venda em aberto não encontrada para este cliente.');
     const aberto = await c.query(
       `select greatest($2::numeric
-                  - coalesce((select sum(valor) from venda_pagamentos where venda_id = $1), 0)
+                  - greatest(coalesce((select sum(valor) from venda_pagamentos where venda_id = $1), 0)
+                             - (select troco from vendas where id = $1), 0)
                   - coalesce((select sum(valor) from venda_devolucoes where venda_id = $1), 0), 0) as saldo`,
       [d.vendaId, venda.rows[0].total]
     );

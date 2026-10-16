@@ -29,14 +29,16 @@ create table if not exists clientes (
   id         uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references empresas(id) on delete cascade,
   nome       text not null,
-  documento  text not null,
-  telefone   numeric(20,0),
+  documento  text,
+  telefone   text,
   email      text,
   endereco   text,
   ativo      boolean not null default true,
   criado_em  timestamptz not null default now()
 );
 create index if not exists clientes_empresa_nome_idx on clientes (empresa_id, nome);
+alter table clientes alter column documento drop not null;
+alter table clientes alter column telefone type text using telefone::text;
 
 create table if not exists produtos (
   id               uuid primary key default gen_random_uuid(),
@@ -139,10 +141,13 @@ alter table produtos add column if not exists estoque_minimo numeric(12,3) not n
 alter table produtos add column if not exists categoria text;
 alter table produtos add column if not exists imagem_url text;
 alter table vendas add column if not exists motivo_cancelamento text;
+alter table vendas add column if not exists comissao_percentual numeric(5,2)
+  check (comissao_percentual is null or comissao_percentual between 0 and 100);
 alter table venda_itens add column if not exists quantidade_devolvida numeric(12,3) not null default 0
   check (quantidade_devolvida >= 0 and quantidade_devolvida <= quantidade);
 alter table venda_pagamentos add column if not exists origem text not null default 'venda'
   check (origem in ('venda', 'cobranca'));
+alter table venda_pagamentos add column if not exists criado_em timestamptz not null default now();
 alter table venda_pagamentos add column if not exists caixa_id uuid;
 
 create table if not exists caixas (

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { arred, brl, FORMAS, qtd } from '../utils.js';
 import Modal from '../components/Modal.jsx';
@@ -53,12 +54,15 @@ export default function PDV() {
   const [desconto, setDesconto] = useState('');
   const [pagamentos, setPagamentos] = useState([]);
   const [valorPg, setValorPg] = useState('');
+  const [fiado, setFiado] = useState(false);
   const [chave, setChave] = useState(() => crypto.randomUUID());
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [vendaFeita, setVendaFeita] = useState(null);
   const [pedidosPendentes, setPedidosPendentes] = useState([]);
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
+  const [caixa, setCaixa] = useState(null);
+  const valorPgRef = useRef(null);
 
   const linhaTotal = (i) => arred((Number(i.quantidade) || 0) * i.preco);
   const subtotal = arred(itens.reduce((s, i) => s + linhaTotal(i), 0));
@@ -68,7 +72,7 @@ export default function PDV() {
   const falta = Math.max(arred(total - pago), 0);
   const troco = Math.max(arred(pago - total), 0);
   const itensOk = itens.length > 0 && itens.every((i) => Number(i.quantidade) > 0);
-  const podeFinalizar = itensOk && pago >= total && !salvando && !vendaFeita;
+  const podeFinalizar = itensOk && (pago >= total || (fiado && Boolean(cliente))) && Boolean(caixa) && !salvando && !vendaFeita;
 
   useEffect(() => {
     const q = busca.trim();
@@ -90,6 +94,9 @@ export default function PDV() {
     const timer = window.setInterval(carregarPedidos, 15000);
     return () => window.clearInterval(timer);
   }, [carregarPedidos]);
+  useEffect(() => {
+    api('/caixa/atual').then(setCaixa).catch((e) => setErro(e.message));
+  }, []);
 
   const adicionar = (p) => {
     setItens((l) => {
@@ -130,7 +137,7 @@ export default function PDV() {
   };
 
   const limpar = () => {
-    setItens([]); setCliente(null); setDesconto(''); setPagamentos([]); setValorPg('');
+    setItens([]); setCliente(null); setDesconto(''); setPagamentos([]); setValorPg(''); setFiado(false);
     setErro(''); setBusca(''); setVendaFeita(null); setChave(crypto.randomUUID()); setPedidoSelecionado(null);
     buscaRef.current?.focus();
   };
@@ -151,6 +158,7 @@ export default function PDV() {
     setDesconto(String(pedido.desconto || 0));
     setPagamentos([]);
     setValorPg('');
+    setFiado(false);
     setErro('');
   };
 
@@ -160,7 +168,7 @@ export default function PDV() {
     try {
       let v;
       if (pedidoSelecionado) {
-        await api(`/pedidos/${pedidoSelecionado.id}/finalizar`, { method: 'POST', body: { pagamentos } });
+        await api(`/pedidos/${pedidoSelecionado.id}/finalizar`, { method: 'POST', body: { pagamentos, fiado } });
         v = await api(`/vendas/${pedidoSelecionado.id}`);
         setPedidosPendentes((lista) => lista.filter((p) => p.id !== pedidoSelecionado.id));
       } else {
@@ -172,6 +180,7 @@ export default function PDV() {
             itens: itens.map((i) => ({ produtoId: i.produtoId, quantidade: Number(i.quantidade) })),
             desconto: desc,
             pagamentos,
+            fiado,
           },
         });
       }
@@ -187,6 +196,7 @@ export default function PDV() {
   const atalho = useRef();
   atalho.current = (e) => {
     if (e.key === 'F2') { e.preventDefault(); buscaRef.current?.focus(); }
+    if (e.key === 'F4') { e.preventDefault(); valorPgRef.current?.focus(); }
     if (e.key === 'F9' && podeFinalizar) { e.preventDefault(); finalizar(); }
   };
   useEffect(() => {
@@ -198,6 +208,11 @@ export default function PDV() {
   return (
     <div className="pdv">
       <section className="pdv-venda">
+        {!caixa && (
+          <div className="alerta alerta-caixa">
+            Para registrar vendas, abra seu caixa primeiro. <Link to="/caixa">Abrir caixa</Link>
+          </div>
+        )}
         {pedidoSelecionado ? (
           <div className="card pedido-em-caixa">
             <div><b>Pedido {String(pedidoSelecionado.numero).padStart(6, '0')}</b><small>Cliente: {pedidoSelecionado.cliente_nome} · Vendedor: {pedidoSelecionado.vendedor_nome}</small></div>
@@ -290,7 +305,7 @@ export default function PDV() {
           <h2>Pagamento</h2>
           <label>
             Valor recebido
-            <input type="number" inputMode="decimal" min="0" step="0.01" placeholder={falta > 0 ? falta.toFixed(2) : '0.00'} value={valorPg} onChange={(e) => setValorPg(e.target.value)} />
+            <input ref={valorPgRef} type="number" inputMode="decimal" min="0" step="0.01" placeholder={falta > 0 ? falta.toFixed(2) : '0.00'} value={valorPg} onChange={(e) => setValorPg(e.target.value)} />
           </label>
           <div className="formas">
             {Object.entries(FORMAS).map(([k, nome]) => (
@@ -312,9 +327,11 @@ export default function PDV() {
             {falta > 0 && itensOk && <div><span>Falta receber</span><b>{brl(falta)}</b></div>}
             {troco > 0 && <div className="troco"><span>Troco</span><b>{brl(troco)}</b></div>}
           </div>
+          {falta > 0 && <label className="check fiado-check"><input type="checkbox" checked={fiado} onChange={(e) => setFiado(e.target.checked)} disabled={!cliente} /> Deixar {brl(falta)} em aberto para este cliente (fiado)</label>}
           <button className="btn primario grande" disabled={!podeFinalizar} onClick={finalizar}>
             {salvando ? 'Gravando…' : pedidoSelecionado ? 'Finalizar pedido (F9)' : 'Finalizar venda (F9)'}
           </button>
+          <small className="atalhos">Atalhos: F2 buscar · F4 pagamento · F9 finalizar</small>
           {itens.length > 0 && !salvando && <button className="link perigo centro-txt" onClick={() => window.confirm('Descartar esta venda?') && limpar()}>Descartar venda</button>}
         </div>
       </aside>
