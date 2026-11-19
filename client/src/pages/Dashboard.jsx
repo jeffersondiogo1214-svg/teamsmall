@@ -22,47 +22,70 @@ export default function Dashboard() {
 
   const totalSemana = dados.semana.reduce((s, d) => s + Number(d.total), 0);
   const maiorDia = Math.max(1, ...dados.semana.map((d) => Number(d.total)));
+  const pendentes = dados.pendentes || { quantidade: 0, valor: 0 };
+  const contasReceber = dados.contasReceber?.valor || 0;
+  const estoqueBaixo = dados.estoque?.quantidade || 0;
 
   return (
-    <div>
-      <div className="topo">
-        <div><h1>Painel do negócio</h1><small>Resumo das vendas de hoje e dos últimos 7 dias</small></div>
-        <Link className="btn primario" to="/relatorios">Abrir relatórios</Link>
+    <div className="dashboard-page">
+      <div className="dashboard-titulo">
+        <div><h1>Dashboard</h1><small>Visão geral do seu negócio</small></div>
+        <div className="dashboard-periodo"><button className="ativo">Hoje</button><button>7 dias</button><button>30 dias</button></div>
       </div>
-      <section className="metricas">
-        <article className="card metrica"><span>Vendas hoje</span><b>{dados.resumo.quantidade}</b></article>
-        <article className="card metrica"><span>Faturamento líquido hoje</span><b>{brl(dados.resumo.total)}</b></article>
-        <article className="card metrica"><span>Ticket médio</span><b>{brl(dados.resumo.ticket_medio)}</b></article>
-        <article className="card metrica"><span>Vendas na semana</span><b>{brl(totalSemana)}</b></article>
-      </section>
 
-      <section className="dashboard-colunas">
-        <div className="card">
-          <h2>Vendas nos últimos 7 dias</h2>
-          <div className="grafico-semana" role="img" aria-label="Gráfico de vendas dos últimos sete dias">
-            {dados.semana.map((dia) => (
-              <div className="grafico-dia" key={dia.dia} title={`${dia.dia}: ${brl(dia.total)}`}>
-                <div className="grafico-barra-wrap"><div className="grafico-barra" style={{ height: `${Math.max(Number(dia.total) ? 4 : 0, Number(dia.total) / maiorDia * 100)}%` }} /></div>
-                <b>{brl(dia.total)}</b>
-                <small>{new Date(`${dia.dia}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' })}</small>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="card">
-          <h2>Produtos mais vendidos hoje</h2>
-          {dados.produtos.length ? (
-            <ol className="lista-resumo">
-              {dados.produtos.map((p) => <li key={p.descricao}><span>{p.descricao}<small>{Number(p.quantidade).toLocaleString('pt-BR')} un.</small></span><b>{brl(p.total)}</b></li>)}
-            </ol>
-          ) : <div className="vazio-card">Ainda não há vendas concluídas hoje.</div>}
-        </div>
+      <section className="dashboard-grid">
+        <article className="card painel-pendencias">
+          <div className="painel-cabecalho"><h2>Pedidos pendentes</h2><b>faturamento</b></div>
+          {pendentes.quantidade ? <div className="pendencia-lista"><b>{pendentes.quantidade} pedidos</b><span>{brl(pendentes.valor)}</span></div> : <div className="vazio-card">Não há pedidos pendentes neste período.</div>}
+          <Link to="/pedidos" className="ver-mais">Ver mais →</Link>
+        </article>
+
+        <article className="card painel-financeiro">
+          <div className="painel-cabecalho"><h2>Contas a pagar</h2></div>
+          <div className="documento-linha cab"><span>Documento</span><span>Vencimento</span><span>Valor</span></div>
+          <div className="vazio-card compacto">Nenhuma conta a pagar cadastrada.</div>
+          <Link to="/financeiro" className="ver-mais">Ver mais →</Link>
+        </article>
+
+        <article className="card painel-alerta">
+          <div className="painel-cabecalho"><h2>Estoque mínimo</h2></div>
+          {estoqueBaixo ? <div className="pendencia-lista"><b>{estoqueBaixo} produtos</b><span>Precisam de reposição</span></div> : <div className="vazio-card">Não há produtos abaixo do mínimo.</div>}
+          <Link to="/estoque" className="ver-mais">Ver mais →</Link>
+        </article>
+
+        <article className="card painel-indicador">
+          <div className="painel-cabecalho"><h2>Clientes ativos</h2><select aria-label="Periodo" defaultValue="3"><option value="3">Últimos 3 dias</option></select></div>
+          <strong className="indicador-numero">{dados.resumo.quantidade}</strong>
+          <div className="mini-chart"><i /><i /><i /><i /><i /></div>
+          <Link to="/clientes" className="ver-mais">Ver mais →</Link>
+        </article>
+
+        <article className="card painel-financeiro painel-receber">
+          <div className="painel-cabecalho"><h2>Contas a receber</h2></div>
+          <div className="documento-linha cab"><span>Documento</span><span>Parcela</span><span>Vencimento</span><span>Valor</span></div>
+          {contasReceber > 0 ? <div className="documento-linha"><span>Saldo em aberto</span><span>1/1</span><span>Hoje</span><b>{brl(contasReceber)}</b></div> : <div className="vazio-card compacto">Nenhuma conta em aberto.</div>}
+          <Link to="/financeiro" className="ver-mais">Ver mais →</Link>
+        </article>
+
+        <article className="card painel-alerta">
+          <div className="painel-cabecalho"><h2>Reposição de produto acabado</h2></div>
+          <div className="vazio-card">Não existem produtos acabados informados.</div>
+          <Link to="/producao" className="ver-mais">Ver mais →</Link>
+        </article>
+
+        <article className="card painel-indicador">
+          <div className="painel-cabecalho"><h2>Crescimento</h2><select aria-label="Periodo" defaultValue="3"><option value="3">Últimos 3 dias</option></select></div>
+          <strong className="indicador-numero crescimento">0%</strong>
+          <div className="mini-chart crescimento-chart"><i /><i /><i /><i /><i /></div>
+        </article>
+
+        <article className="card painel-producoes">
+          <div className="painel-cabecalho"><h2>Ordens de produção atrasada</h2></div>
+          <div className="vazio-card">Não existem ordens de produção atrasadas.</div>
+          <Link to="/producao" className="ver-mais">Ver mais →</Link>
+        </article>
       </section>
-      <div className="acoes">
-        <Link className="btn" to="/caixa">Abrir ou fechar caixa</Link>
-        <Link className="btn" to="/vendas">Consultar vendas</Link>
-      </div>
-      <p className="suave">Valores atualizados em {dataHora(new Date().toISOString())}.</p>
+      <p className="suave dashboard-atualizado">Valores atualizados em {dataHora(new Date().toISOString())}.</p>
     </div>
   );
 }

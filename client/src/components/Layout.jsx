@@ -13,6 +13,18 @@ const I = {
 I.dashboard = 'M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z';
 I.relatorio = 'M4 19V5M4 19h17M8 15l3-4 3 2 5-7';
 I.caixa = 'M3 6h18v13H3zM7 6V4h10v2M12 10v5M9 13h6';
+I.assistente = 'M9 3h6l1 3h3v15H5V6h3l1-3zM9 10h6M9 14h6';
+I.compras = 'M6 7h15l-2 8H8L6 3H3M9 20h.01M18 20h.01';
+I.estoque = 'M3 6h18v13H3zM3 10h18M8 14h3';
+I.custos = 'M4 4h16v16H4zM8 8h8M8 12h8M8 16h5';
+I.catalogo = 'M4 6h16v12H4zM8 10h8M8 14h5';
+I.faturamento = 'M6 2h9l4 4v16H6zM15 2v5h5M9 11h7M9 15h7';
+I.fiscal = 'M6 3h12v18H6zM9 7h6M9 11h6M9 15h3';
+I.producao = 'M4 21V10l8-6 8 6v11M8 21v-7h8v7';
+I.entrega = 'M3 6h11v11H3zM14 10h4l3 3v4h-7M7 20a2 2 0 100-4 2 2 0 000 4zM18 20a2 2 0 100-4 2 2 0 000 4z';
+I.financeiro = 'M3 10h18M5 10v7M9 10v7M15 10v7M19 10v7M2 21h20M12 3l9 5H3l9-5z';
+I.bi = 'M4 19V5M4 19h16M8 15l3-3 3 1 4-6';
+I.integracoes = 'M10 13a5 5 0 007 7l3-3-5-5M14 11a5 5 0 00-7-7l-3 3 5 5';
 
 const Icone = ({ d }) => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
@@ -24,13 +36,25 @@ export default function Layout({ children }) {
   const vendedor = usuario.perfil === 'vendedor';
   const classe = ({ isActive }) => (isActive ? 'ativo' : '');
   const itens = [
-    admin && { to: '/', end: true, nome: 'Painel', ic: I.dashboard, grupo: 'Gestão' },
-    !vendedor && { to: admin ? '/pdv' : '/', end: true, nome: 'Caixa (PDV)', ic: I.pdv, grupo: 'Operação' },
+    admin && { to: '/', end: true, nome: 'Dashboard', ic: I.dashboard, grupo: 'Principal' },
+    admin && { to: '/assistente-ia', nome: 'Assistente IA', ic: I.assistente, grupo: 'Principal', badge: true },
+    admin && { to: '/produtos', nome: 'Cadastros', ic: I.produtos, grupo: 'Cadastros' },
+    admin && { to: '/compras', nome: 'Compras', ic: I.compras, grupo: 'Operação' },
+    admin && { to: '/estoque', nome: 'Estoque', ic: I.estoque, grupo: 'Operação' },
+    admin && { to: '/custos-tabelas', nome: 'Custos e tabelas', ic: I.custos, grupo: 'Operação' },
+    admin && { to: '/catalogo', nome: 'Catálogo virtual', ic: I.catalogo, grupo: 'Operação' },
+    admin && { to: '/faturamento/pedidos', nome: 'Faturamento', ic: I.faturamento, grupo: 'Operação' },
+    admin && { to: '/fiscal', nome: 'Fiscal', ic: I.fiscal, grupo: 'Operação' },
+    admin && { to: '/producao', nome: 'Produção', ic: I.producao, grupo: 'Operação' },
+    admin && { to: '/entrega', nome: 'Entrega', ic: I.entrega, grupo: 'Operação' },
+    admin && { to: '/financeiro', nome: 'Financeiro', ic: I.financeiro, grupo: 'Gestão' },
+    admin && { to: '/bi', nome: 'B.I.', ic: I.bi, grupo: 'Gestão' },
+    admin && { to: '/relatorios', nome: 'Relatórios', ic: I.relatorio, grupo: 'Gestão' },
+    admin && { to: '/integracoes', nome: 'Integrações', ic: I.integracoes, grupo: 'Gestão' },
+    !vendedor && { to: admin ? '/pdv' : '/', end: true, nome: 'PDV', ic: I.pdv, grupo: 'Operação' },
     !vendedor && { to: '/caixa', nome: 'Abertura/fechamento', ic: I.caixa, grupo: 'Operação' },
     (admin || vendedor) && { to: '/pedidos', nome: 'Pedidos', ic: I.pedidos, grupo: 'Operação' },
     !vendedor && { to: '/vendas', nome: 'Vendas', ic: I.vendas, grupo: 'Operação' },
-    admin && { to: '/relatorios', nome: 'Relatórios', ic: I.relatorio, grupo: 'Gestão' },
-    admin && { to: '/produtos', nome: 'Produtos', ic: I.produtos, grupo: 'Cadastros' },
     (admin || vendedor) && { to: '/clientes', nome: 'Clientes', ic: I.clientes, grupo: 'Cadastros' },
     admin && { to: '/configuracoes', nome: 'Configurações', ic: I.config, grupo: 'Sistema' },
   ].filter(Boolean);
@@ -68,7 +92,11 @@ export default function Layout({ children }) {
             <small className="barra-data">{hoje}</small>
             <div className="barra-titulo">{atual?.nome || empresa.nome}</div>
           </div>
-          <div className="barra-usuario"><span className="avatar">{iniciais}</span></div>
+          <div className="barra-acoes">
+            <label className="barra-busca"><span>⌕</span><input placeholder="Pesquisar no menu (F1)" aria-label="Pesquisar no menu" /></label>
+            <button className="barra-ajuda" title="Ajuda" aria-label="Ajuda">?</button>
+            <div className="barra-usuario"><span className="avatar">{iniciais}</span></div>
+          </div>
         </header>
         <main>{children}</main>
       </div>

@@ -7,7 +7,7 @@ const TZ = process.env.TZ_EMPRESA || 'America/Sao_Paulo';
 
 router.get('/', soAdmin, wrap(async (req, res) => {
   const emp = req.user.empresa_id;
-  const [resumo, semana, produtos] = await Promise.all([
+  const [resumo, semana, produtos, pendentes, estoque, contasReceber] = await Promise.all([
     query(
       `select count(*)::int as quantidade,
               coalesce(sum(v.total - coalesce(d.valor, 0)), 0) as total,
@@ -48,11 +48,39 @@ router.get('/', soAdmin, wrap(async (req, res) => {
         order by quantidade desc, total desc limit 5`,
       [emp, TZ]
     ),
+    query(
+      `select count(*)::int as quantidade,
+              coalesce(sum(total), 0) as valor
+         from vendas where empresa_id = $1 and status = 'pendente'`,
+      [emp]
+    ),
+    query(
+      `select count(*)::int as quantidade
+         from produtos
+        where empresa_id = $1 and ativo and controla_estoque and estoque <= estoque_minimo`,
+      [emp]
+    ),
+    query(
+      `select coalesce(sum(saldo), 0) as valor
+         from (
+           select v.id, v.total - coalesce((
+             select sum(p.valor) from venda_pagamentos p
+              where p.venda_id = v.id and p.origem = 'venda'
+           ), 0) as saldo
+           from vendas v
+          where v.empresa_id = $1 and v.status = 'concluida'
+         ) f
+        where saldo > 0`,
+      [emp]
+    ),
   ]);
   res.json({
     resumo: resumo.rows[0],
     semana: semana.rows,
     produtos: produtos.rows,
+    pendentes: pendentes.rows[0],
+    estoque: estoque.rows[0],
+    contasReceber: contasReceber.rows[0],
   });
 }));
 

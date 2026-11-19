@@ -278,6 +278,12 @@ main { padding: 32px 36px; }
 .barra-data { text-transform: capitalize; }
 .barra-titulo { font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
 .barra-usuario .avatar { background: var(--lateral); color: var(--ambar); }
+.barra-acoes { display:flex; align-items:center; gap:10px; }
+.barra-busca { width:280px; display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--linha); border-radius:22px; padding:0 12px; }
+.barra-busca span { color:#7255ff; font-size:18px; }
+.barra-busca input { border:0; background:transparent; box-shadow:none; padding:8px 0; }
+.barra-busca input:focus { box-shadow:none; }
+.barra-ajuda { width:34px; height:34px; border-radius:50%; border:1px solid var(--linha); background:#fff; color:#7255ff; font-weight:800; cursor:pointer; }
 main { padding: 28px 36px 40px; max-width: 1440px; width: 100%; }
 @media (max-width: 860px) {
   .app { grid-template-columns: 1fr; padding-bottom: 72px; }
@@ -291,6 +297,69 @@ main { padding: 28px 36px 40px; max-width: 1440px; width: 100%; }
   main { padding: 16px 14px; }
 }
 /* ===================== FIM ESTRUTURA NOVA ===================== */
+/* Dashboard ERP */
+.dashboard-page { min-width: 0; }
+.dashboard-titulo { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; }
+.dashboard-titulo h1 { margin-bottom:2px; }
+.dashboard-periodo { background:#fff; border:1px solid var(--linha); border-radius:10px; padding:3px; display:flex; gap:2px; }
+.dashboard-periodo button { border:0; background:transparent; color:var(--suave); padding:7px 12px; border-radius:7px; font-weight:700; cursor:pointer; }
+.dashboard-periodo button.ativo { background:var(--marca-clara); color:var(--marca); }
+.dashboard-grid { display:grid; grid-template-columns:minmax(240px,.8fr) minmax(420px,1.55fr) minmax(240px,.8fr); gap:16px; align-items:start; }
+.dashboard-grid .card { min-height:174px; padding:18px; position:relative; }
+.painel-cabecalho { display:flex; justify-content:space-between; align-items:center; min-height:30px; margin-bottom:10px; }
+.painel-cabecalho h2 { color:#9a9da1; margin:0; font-size:18px; }
+.painel-cabecalho b { color:#2d5dff; background:#edf1ff; border-radius:6px; font-size:11px; padding:3px 6px; }
+.painel-cabecalho select { border:0; background:transparent; color:var(--suave); width:auto; padding:4px; font-size:12px; }
+.vazio-card { color:#777; font-size:14px; min-height:82px; display:grid; place-items:center; text-align:center; border-radius:8px; }
+.vazio-card.compacto { min-height:72px; }
+.ver-mais { position:absolute; right:18px; bottom:12px; color:#6d46ff; font-size:12px; text-decoration:none; font-weight:700; }
+.pendencia-lista { min-height:92px; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:4px; }
+.pendencia-lista b { font-size:28px; }
+.pendencia-lista span { color:var(--suave); }
+.documento-linha { display:grid; grid-template-columns:1fr .7fr 1fr .8fr; gap:10px; align-items:center; min-height:42px; border-bottom:1px solid #f0eee9; font-size:13px; }
+.painel-financeiro .documento-linha { grid-template-columns:1fr .7fr 1fr .8fr; }
+.documento-linha.cab { grid-template-columns:1fr .7fr 1fr .8fr; min-height:28px; color:#9a9da1; border-bottom:0; font-size:12px; }
+.painel-financeiro:not(.painel-receber) .documento-linha.cab { grid-template-columns:1fr 1fr 1fr; }
+.documento-linha b { text-align:right; }
+.painel-indicador { overflow:hidden; }
+.indicador-numero { display:block; font-size:44px; line-height:1; color:#3a3d42; margin:18px 0 8px; text-align:center; }
+.indicador-numero.crescimento { color:#9d9da0; }
+.mini-chart { height:62px; display:flex; align-items:flex-end; gap:18px; justify-content:center; border-bottom:1px solid #eceaf0; margin:0 20px; }
+.mini-chart i { display:block; width:18px; height:18px; border:2px solid #7255ff; border-radius:50%; background:#fff; margin-bottom:-10px; box-shadow:0 0 0 8px #fff; }
+.crescimento-chart i { height:24px; width:24px; border-color:#dfe3e8; background:#bfc6ce; }
+.painel-producoes { grid-column:1 / -1; }
+.dashboard-atualizado { text-align:right; margin-top:14px; }
+
+/* Modulos e faturamento */
+.abas-modulo { display:flex; gap:6px; overflow-x:auto; border-bottom:1px solid var(--linha); margin:8px 0 18px; }
+.abas-modulo button { border:0; background:transparent; color:var(--suave); padding:10px 12px 12px; white-space:nowrap; cursor:pointer; border-bottom:2px solid transparent; }
+.abas-modulo button.ativa { color:var(--marca); border-bottom-color:var(--marca); font-weight:700; }
+.modulo-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.modulo-card-cab { display:flex; justify-content:space-between; align-items:center; }
+.modulo-card-cab b { width:32px; height:32px; display:grid; place-items:center; border-radius:50%; background:var(--marca-clara); color:var(--marca); }
+.modulo-item { width:100%; display:flex; justify-content:space-between; align-items:center; border:0; border-bottom:1px solid #f0eee9; background:transparent; padding:12px 4px; cursor:pointer; color:var(--tinta); text-align:left; }
+.modulo-item:hover { color:var(--marca); }
+.modulo-item small { color:var(--suave); }
+.ia-painel { max-width:820px; min-height:520px; display:flex; flex-direction:column; }
+.ia-cabecalho { display:flex; align-items:center; gap:12px; }
+.ia-avatar { width:42px; height:42px; border-radius:12px; display:grid; place-items:center; background:linear-gradient(135deg,#7255ff,#a94df0); color:#fff; font-weight:800; }
+.ia-conversa { flex:1; display:flex; flex-direction:column; align-items:flex-start; gap:10px; padding:26px 0; }
+.mensagem { max-width:520px; background:#f2f1ed; border-radius:14px 14px 14px 4px; padding:12px 14px; }
+.sugestao-ia { border:1px solid var(--linha); background:#fff; border-radius:20px; padding:8px 12px; color:var(--marca); cursor:pointer; }
+.ia-entrada { display:flex; gap:10px; }
+.ia-entrada input { flex:1; }
+
+@media (max-width:1200px) {
+  .dashboard-grid { grid-template-columns:minmax(220px,.8fr) minmax(380px,1.3fr); }
+  .dashboard-grid .painel-alerta:last-of-type { grid-column:auto; }
+  .painel-producoes { grid-column:1 / -1; }
+}
+@media (max-width:860px) {
+  .dashboard-grid, .modulo-grid { grid-template-columns:1fr; }
+  .painel-producoes { grid-column:auto; }
+  .dashboard-periodo { display:none; }
+  .barra-busca, .barra-ajuda { display:none; }
+}
 @media print {
   #root { display: none !important; }
   #print-root { display: block; }
